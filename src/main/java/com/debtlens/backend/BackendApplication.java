@@ -4,11 +4,11 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class TechnicalDebtBackendApplication {
+public class BackendApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(
-                TechnicalDebtBackendApplication.class,
+                BackendApplication.class,
                 args
         );
     }
