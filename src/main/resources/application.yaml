@@ -8,9 +8,9 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
-    hikari:
-      max-lifetime: 300000
-      keepalive-time: 120000
+  hikari:
+    max-lifetime: 300000
+    keepalive-time: 120000
 
   jpa:
     hibernate:
@@ -19,3 +19,13 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+auth0:
+  domain: ${AUTH0_DOMAIN}
+  client-id: ${AUTH0_CLIENT_ID}
+  client-secret: ${AUTH0_CLIENT_SECRET}
+  audience: ${AUTH0_AUDIENCE}
+  database-connection: ${AUTH0_DATABASE_CONNECTION}
+
+  roles:
+    system-user: rol_HhD7jrh3qJjAJV4q
