@@ -5,11 +5,13 @@ on:
     branches:
       - main
       - develop
+      - muditha
 
   pull_request:
     branches:
       - main
       - develop
+      - muditha
 
 jobs:
   build:
