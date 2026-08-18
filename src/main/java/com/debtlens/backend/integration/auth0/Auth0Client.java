@@ -50,17 +50,22 @@ public class Auth0Client {
         return response.accessToken();
     }
 
-    public Auth0UserResponse createUser(
+    public Auth0CreateUserResponse createUser(
             String managementToken,
             String email,
-            String password
+            String password,
+            String firstName,
+            String lastName
     ) {
 
         Auth0CreateUserRequest request =
                 new Auth0CreateUserRequest(
                         auth0Config.databaseConnection(),
                         email,
-                        password
+                        password,
+                        firstName,
+                        lastName,
+                        firstName + " " + lastName
                 );
 
         return restClient.post()
@@ -72,7 +77,7 @@ public class Auth0Client {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
-                .body(Auth0UserResponse.class);
+                .body(Auth0CreateUserResponse.class);
     }
 
     public void assignRole(

@@ -2,7 +2,7 @@ package com.debtlens.backend.integration.auth0;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public record Auth0UserResponse(
+public record Auth0CreateUserResponse(
 
         @JsonProperty("user_id")
         String userId,
