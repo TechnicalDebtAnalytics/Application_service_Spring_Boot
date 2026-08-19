@@ -8,17 +8,22 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
-  hikari:
-    max-lifetime: 300000
-    keepalive-time: 120000
+    hikari:
+      max-lifetime: 300000
+      keepalive-time: 120000
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
         format_sql: true
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
 
 auth0:
   domain: ${AUTH0_DOMAIN}
