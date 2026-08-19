@@ -1,0 +1,165 @@
+-- Identity and access
+USER (
+  user_id PK,
+  auth0_user_id UNIQUE,
+  first_name,
+  last_name,
+  email UNIQUE,
+  github_username UNIQUE NOT NULL,
+  email_verified,
+  created_at,
+  updated_at
+)
+
+COMPANY (
+  company_id PK,
+  company_name,
+  github_organization_url,
+  auth0_organization_id,
+  created_by FK -> USER.user_id,
+  created_at,
+  updated_at
+)
+
+MEMBER (
+  member_id PK,
+  user_id FK -> USER.user_id,
+  company_id FK -> COMPANY.company_id,
+  assigned_by FK -> USER.user_id,
+  created_at
+)
+
+SUPER_ADMIN (
+  super_admin_id PK,
+  user_id FK -> USER.user_id,
+  company_id FK -> COMPANY.company_id,
+  created_at
+)
+
+REPOSITORY (
+  repository_id PK,
+  company_id FK -> COMPANY.company_id,
+  github_repository_id UNIQUE,
+  repository_name,
+  repository_url UNIQUE,
+  default_branch,
+  created_at
+)
+
+REPO_ASSIGNMENT (
+  member_id PK, FK -> MEMBER.member_id,
+  repository_id PK, FK -> REPOSITORY.repository_id,
+  created_at
+)
+
+INVITATION (
+  invitation_id PK,
+  email NOT NULL,
+  company_id FK -> COMPANY.company_id,
+  repository_id FK -> REPOSITORY.repository_id,
+  super_admin_id FK -> SUPER_ADMIN.super_admin_id,
+  status,
+  expires_at,
+  token UNIQUE NOT NULL,
+  created_at
+)
+
+-- Analysis and reporting
+ANALYSIS_JOB (
+  analysis_id PK,
+  repository_id FK -> REPOSITORY.repository_id,
+  started_by FK -> USER.user_id,
+  status,
+  started_at,
+  completed_at
+)
+
+ANALYSIS_STATUS_HISTORY (
+  status_history_id PK,
+  analysis_id FK -> ANALYSIS_JOB.analysis_id,
+  status,
+  message,
+  timestamp
+)
+
+REPORT (
+  report_id PK,
+  analysis_id FK -> ANALYSIS_JOB.analysis_id,
+  report_type,
+  generated_at
+)
+
+CLASS_METRICS (
+  class_id PK,
+  analysis_job_id FK -> ANALYSIS_JOB.analysis_id,
+  class_name,
+  file_path,
+  start_line,
+  end_line,
+  loc,
+  cyclomatic_complexity,
+  cbo,
+  dit,
+  fan_in,
+  fan_out,
+  lcom,
+  noc,
+  number_of_attributes,
+  number_of_lines_of_code,
+  number_of_methods,
+  number_of_private_attributes,
+  number_of_private_methods,
+  number_of_public_attributes,
+  number_of_public_methods,
+  rfc,
+  wmc,
+  number_of_versions_until,
+  number_of_authors_until,
+  lines_added_until,
+  max_lines_added_until,
+  avg_lines_added_until,
+  lines_removed_until,
+  max_lines_removed_until,
+  avg_lines_removed_until,
+  code_churn_until,
+  max_code_churn_until,
+  avg_code_churn_until,
+  age_with_respect_to,
+  weighted_age_with_respect_to
+)
+
+CLASS_COMMENTS (
+  comment_id PK,
+  class_id FK -> CLASS_METRICS.class_id,
+  comment
+)
+
+SATD_DETECTION (
+  satd_id PK,
+  comment_id FK -> CLASS_COMMENTS.comment_id,
+  category,
+  confidence_score
+)
+
+BUG_PREDICTION (
+  prediction_id PK,
+  class_id FK -> CLASS_METRICS.class_id,
+  probability_score
+)
+
+DEBT_SCORES (
+  debt_score_id PK,
+  class_id FK -> CLASS_METRICS.class_id,
+  health_score,
+  technical_debt_score,
+  risk_level
+)
+
+NOTIFICATION (
+  notification_id PK,
+  user_id FK -> USER.user_id,
+  member_id FK -> MEMBER.member_id,
+  notification_type,
+  message,
+  created_at
+)

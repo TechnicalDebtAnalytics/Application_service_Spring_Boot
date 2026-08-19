@@ -1,15 +1,16 @@
 package com.debtlens.backend.exception;
 
-public class ResourceNotFoundException {
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
+@ResponseStatus(HttpStatus.NOT_FOUND)
+public class ResourceNotFoundException extends RuntimeException {
+
+    public ResourceNotFoundException(String message) {
+        super(message);
+    }
+
+    public ResourceNotFoundException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }
-
-/*ResourceNotFoundException.java
-
-Used when something doesn't exist.
-
-Examples:
-
-Company not found
-Repository not found
-User not found
-AnalysisJob not found*/

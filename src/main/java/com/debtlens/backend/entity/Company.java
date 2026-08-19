@@ -1,11 +1,12 @@
 package com.debtlens.backend.entity;
 
 import jakarta.persistence.*;
-
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
-@Table(name = "companies")
+@Table(name = "company")
 public class Company {
 
     @Id
@@ -13,39 +14,30 @@ public class Company {
     @Column(name = "company_id")
     private Long companyId;
 
-    @Column(name = "company_name", nullable = false, length = 255)
+    @Column(name = "company_name", nullable = false)
     private String companyName;
 
-    @Column(name = "github_organization_url", length = 500)
+    @Column(name = "github_organization_url", nullable = false)
     private String githubOrganizationUrl;
 
-    @Column(name = "auth0_organization_id", unique = true, length = 255)
-    private String auth0OrganizationId;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Repository> repositories = new ArrayList<>();
+
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    public Company() {
-    }
-
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
-
-        if (createdAt == null) {
-            createdAt = now;
-        }
-
-        if (updatedAt == null) {
-            updatedAt = now;
-        }
+        createdAt = now;
+        updatedAt = now;
     }
 
     @PreUpdate
@@ -77,14 +69,6 @@ public class Company {
         this.githubOrganizationUrl = githubOrganizationUrl;
     }
 
-    public String getAuth0OrganizationId() {
-        return auth0OrganizationId;
-    }
-
-    public void setAuth0OrganizationId(String auth0OrganizationId) {
-        this.auth0OrganizationId = auth0OrganizationId;
-    }
-
     public User getCreatedBy() {
         return createdBy;
     }
@@ -93,19 +77,24 @@ public class Company {
         this.createdBy = createdBy;
     }
 
+    public List<Repository> getRepositories() {
+        return repositories;
+    }
+
+    public void setRepositories(List<Repository> repositories) {
+        this.repositories = repositories;
+    }
+
+    public void addRepository(Repository repository) {
+        repositories.add(repository);
+        repository.setCompany(this);
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
 
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
     }
 }

@@ -22,6 +22,9 @@ public record RegisterRequest(
         String firstName,
 
         @NotBlank(message = "Last name is required")
-        String lastName
+        String lastName,
+
+        @NotBlank(message = "GitHub username is required")
+        String githubUsername
 ) {
 }

@@ -2,6 +2,13 @@ spring:
   application:
     name: technical-debt-backend
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${AUTH0_ISSUER_URI}
+          audiences: ${AUTH0_AUDIENCE}
+
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -11,8 +18,11 @@ spring:
     hikari:
       max-lifetime: 300000
       keepalive-time: 120000
+      connection-timeout: 30000
+      maximum-pool-size: 10
 
   jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: validate
     show-sql: true
@@ -22,15 +32,17 @@ spring:
 
   flyway:
     enabled: true
-    baseline-on-migrate: true
-    baseline-version: 1
 
 auth0:
   domain: ${AUTH0_DOMAIN}
   client-id: ${AUTH0_CLIENT_ID}
   client-secret: ${AUTH0_CLIENT_SECRET}
   audience: ${AUTH0_AUDIENCE}
-  database-connection: ${AUTH0_DATABASE_CONNECTION}
+  database-connection: Username-Password-Authentication
 
   roles:
-    system-user: rol_HhD7jrh3qJjAJV4q
+    system-user: ${AUTH0_SYSTEM_USER_ROLE}
+
+github:
+  token: ${GITHUB_TOKEN}
+  api-url: ${GITHUB_API_URL:https://api.github.com}

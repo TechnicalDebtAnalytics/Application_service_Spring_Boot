@@ -102,4 +102,21 @@ public class Auth0Client {
                 .retrieve()
                 .toBodilessEntity();
     }
+
+    public List<Auth0RoleResponse> getUserRoles(
+            String managementToken,
+            String userId
+    ) {
+        List<Auth0RoleResponse> roles = restClient.get()
+                .uri("/api/v2/users/{userId}/roles", userId)
+                .header(
+                        "Authorization",
+                        "Bearer " + managementToken
+                )
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .body(new org.springframework.core.ParameterizedTypeReference<List<Auth0RoleResponse>>() {});
+
+        return roles != null ? roles : List.of();
+    }
 }

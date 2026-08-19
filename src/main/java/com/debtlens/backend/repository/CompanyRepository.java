@@ -3,13 +3,16 @@ package com.debtlens.backend.repository;
 import com.debtlens.backend.entity.Company;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface CompanyRepository extends JpaRepository<Company, Long> {
 
-    Optional<Company> findByAuth0OrganizationId(String auth0OrganizationId);
+    List<Company> findByCreatedByUserId(Long userId);
 
-    boolean existsByAuth0OrganizationId(String auth0OrganizationId);
+    Optional<Company> findByGithubOrganizationUrl(String githubOrganizationUrl);
 
-    Optional<Company> findByCompanyName(String companyName);
+    boolean existsByGithubOrganizationUrl(String githubOrganizationUrl);
+
+    boolean existsByCompanyName(String companyName);
 }
