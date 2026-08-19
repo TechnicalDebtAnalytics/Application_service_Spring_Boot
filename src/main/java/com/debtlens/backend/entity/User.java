@@ -23,6 +23,9 @@ public class User {
     @Column(name = "email", nullable = false, unique = true)
     private String email;
 
+    @Column(name = "github_username", nullable = false, unique = true)
+    private String githubUsername;
+
     @Column(name = "email_verified", nullable = false)
     private Boolean emailVerified;
 
@@ -78,6 +81,14 @@ public class User {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getGithubUsername() {
+        return githubUsername;
+    }
+
+    public void setGithubUsername(String githubUsername) {
+        this.githubUsername = githubUsername;
     }
 
     public Boolean getEmailVerified() {

@@ -3,9 +3,9 @@ spring:
     name: technical-debt-backend
 
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: jdbc:postgresql://ep-raspy-sky-az97sgvp-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+    username: neondb_owner
+    password: npg_iCrSo7ZzWIl0
     driver-class-name: org.postgresql.Driver
 
   hikari:
@@ -21,11 +21,11 @@ spring:
         format_sql: true
 
 auth0:
-  domain: ${AUTH0_DOMAIN}
-  client-id: ${AUTH0_CLIENT_ID}
-  client-secret: ${AUTH0_CLIENT_SECRET}
-  audience: ${AUTH0_AUDIENCE}
-  database-connection: ${AUTH0_DATABASE_CONNECTION}
+  domain: dev-8nsu386inyln7qfs.us.auth0.com
+  client-id: zOArOHQnp1pMVY4849aSwY43epgfDsrR
+  client-secret: YK3qV9H3FS52CcVN9jQjmhIs9aEcsm08i5rnQazXMvlG8VOvNX0nXeHIDvUeWH-P
+  audience: https://dev-8nsu386inyln7qfs.us.auth0.com/api/v2/
+  database-connection: Username-Password-Authentication
 
   roles:
     system-user: rol_HhD7jrh3qJjAJV4q
