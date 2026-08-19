@@ -2,23 +2,38 @@ spring:
   application:
     name: technical-debt-backend
 
-  datasource:
-    url: jdbc:postgresql://ep-raspy-sky-az97sgvp-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
-    username: neondb_owner
-    password: npg_iCrSo7ZzWIl0
-    driver-class-name: org.postgresql.Driver
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://dev-8nsu386inyln7qfs.us.auth0.com/
+          audiences: https://dev-8nsu386inyln7qfs.us.auth0.com/api/v2/
 
-  hikari:
-    max-lifetime: 300000
-    keepalive-time: 120000
+  datasource:
+    url: jdbc:postgresql://ep-raspy-sky-az97sgvp-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
+    username: neondb_owner
+    password: npg_MxTAeD4n0NLi
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      max-lifetime: 300000
+      keepalive-time: 120000
+      connection-timeout: 30000
+      maximum-pool-size: 10
 
   jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
+    defer-datasource-initialization: true
     show-sql: true
     properties:
       hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+
+  sql:
+    init:
+      mode: always
 
 auth0:
   domain: dev-8nsu386inyln7qfs.us.auth0.com
@@ -29,3 +44,7 @@ auth0:
 
   roles:
     system-user: rol_HhD7jrh3qJjAJV4q
+
+github:
+  token: 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
+  api-url: ${GITHUB_API_URL:https://api.github.com}
