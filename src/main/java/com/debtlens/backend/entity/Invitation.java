@@ -20,13 +20,13 @@ public class Invitation {
     private String email;
 
     // Repository that the invited user will eventually receive access to.
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "repository_id", nullable = false)
     private Repository repository;
 
     // The admin assignment that issued this invitation. Storing Super_Admin
     // preserves both the issuing user and their company-level authority.
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "super_admin_id", nullable = false)
     private Super_Admin superAdmin;
 

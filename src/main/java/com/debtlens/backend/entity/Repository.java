@@ -12,7 +12,7 @@ public class Repository {
     @Column(name = "repository_id")
     private Long repositoryId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
 
