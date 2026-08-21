@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "company")
+@Table(name = "companies")
 public class Company {
 
     @Id
@@ -20,7 +20,7 @@ public class Company {
     @Column(name = "github_organization_url", nullable = false)
     private String githubOrganizationUrl;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
 

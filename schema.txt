@@ -1,3 +1,10 @@
+-- LEGACY / HISTORICAL SCHEMA
+-- DO NOT USE FOR DATABASE INITIALIZATION
+-- FLYWAY V1-V15 IS THE AUTHORITATIVE DATABASE SCHEMA
+--
+-- Retained only as historical design documentation. Its contents may not
+-- match the current Flyway-managed schema.
+
 -- Identity and access
 USER (
   user_id PK,

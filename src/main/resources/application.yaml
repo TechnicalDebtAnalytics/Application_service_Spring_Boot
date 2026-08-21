@@ -6,14 +6,15 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: https://dev-8nsu386inyln7qfs.us.auth0.com/
-          audiences: https://dev-8nsu386inyln7qfs.us.auth0.com/api/v2/
+          issuer-uri: ${AUTH0_ISSUER_URI}
+          audiences: ${AUTH0_AUDIENCE}
 
   datasource:
-    url: jdbc:postgresql://ep-raspy-sky-az97sgvp-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
-    username: neondb_owner
-    password: npg_MxTAeD4n0NLi
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+
     hikari:
       max-lifetime: 300000
       keepalive-time: 120000
@@ -23,28 +24,25 @@ spring:
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: update
-    defer-datasource-initialization: true
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
-  sql:
-    init:
-      mode: always
+  flyway:
+    enabled: true
 
 auth0:
-  domain: dev-8nsu386inyln7qfs.us.auth0.com
-  client-id: zOArOHQnp1pMVY4849aSwY43epgfDsrR
-  client-secret: YK3qV9H3FS52CcVN9jQjmhIs9aEcsm08i5rnQazXMvlG8VOvNX0nXeHIDvUeWH-P
-  audience: https://dev-8nsu386inyln7qfs.us.auth0.com/api/v2/
+  domain: ${AUTH0_DOMAIN}
+  client-id: ${AUTH0_CLIENT_ID}
+  client-secret: ${AUTH0_CLIENT_SECRET}
+  audience: ${AUTH0_AUDIENCE}
   database-connection: Username-Password-Authentication
 
   roles:
-    system-user: rol_HhD7jrh3qJjAJV4q
+    system-user: ${AUTH0_SYSTEM_USER_ROLE}
 
 github:
-  token: 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
+  token: ${GITHUB_TOKEN}
   api-url: ${GITHUB_API_URL:https://api.github.com}
