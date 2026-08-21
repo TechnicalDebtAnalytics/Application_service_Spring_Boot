@@ -57,6 +57,12 @@ public class Repo_Assignment {
 
     public void setMember(Member member) {
         this.member = member;
+        if (member != null) {
+            if (this.id == null) {
+                this.id = new RepoAssignmentId();
+            }
+            this.id.setMemberId(member.getMemberId());
+        }
     }
 
     public Repository getRepository() {
@@ -65,6 +71,12 @@ public class Repo_Assignment {
 
     public void setRepository(Repository repository) {
         this.repository = repository;
+        if (repository != null) {
+            if (this.id == null) {
+                this.id = new RepoAssignmentId();
+            }
+            this.id.setRepositoryId(repository.getRepositoryId());
+        }
     }
 
     public LocalDateTime getCreatedAt() {

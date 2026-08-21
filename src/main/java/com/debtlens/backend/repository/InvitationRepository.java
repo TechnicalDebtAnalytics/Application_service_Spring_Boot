@@ -16,6 +16,10 @@ public interface InvitationRepository
     // Lists invitation history for a repository or issuing admin assignment.
     List<Invitation> findByRepositoryRepositoryId(Long repositoryId);
 
+    List<Invitation> findByRepositoryRepositoryIdAndStatus(Long repositoryId, InvitationStatus status);
+
+    List<Invitation> findByRepositoryCompanyCompanyId(Long companyId);
+
     List<Invitation> findBySuperAdminSuperAdminId(Long superAdminId);
 
     // Supports status-scoped views such as an admin's pending invitations.
@@ -26,11 +30,17 @@ public interface InvitationRepository
 
     List<Invitation> findByEmail(String email);
 
-    // Used by the future service layer to prevent duplicate pending
+    // Used by the service layer to prevent duplicate pending
     // invitations for the same email and repository.
     boolean existsByEmailAndRepositoryRepositoryIdAndStatus(
             String email,
             Long repositoryId,
             InvitationStatus status
+    );
+
+    @org.springframework.data.jpa.repository.Query("SELECT i FROM Invitation i WHERE i.status = com.debtlens.backend.entity.InvitationStatus.PENDING AND ((i.githubUsername IS NOT NULL AND LOWER(i.githubUsername) = LOWER(:githubUsername)) OR (i.email IS NOT NULL AND LOWER(i.email) = LOWER(:email)))")
+    List<Invitation> findPendingForUser(
+            @org.springframework.data.repository.query.Param("githubUsername") String githubUsername,
+            @org.springframework.data.repository.query.Param("email") String email
     );
 }

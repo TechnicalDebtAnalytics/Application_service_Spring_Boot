@@ -21,4 +21,6 @@ public interface CompanyService {
     List<CompanyAvailableRepoDTO> getAvailableRepositoriesForCompany(Long companyId);
 
     List<RepositoryResponseDTO> getCompanyRepositories(Long companyId);
+
+    List<CompanyResponseDTO> getMyMemberCompanies();
 }

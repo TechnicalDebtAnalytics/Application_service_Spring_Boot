@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: technical-debt-backend-test
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://dev-test.auth0.com/
+          audiences: https://api.debtlens.com
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/testdb
+    username: test
+    password: test
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: none
+
+  flyway:
+    enabled: false
+
+  mail:
+    host: localhost
+    port: 25
+
+app:
+  invitation:
+    frontend-base-url: http://localhost:5173/invitation/accept
+    expiration-days: 7
+
+auth0:
+  domain: dev-test.auth0.com
+  client-id: test-client-id
+  client-secret: test-client-secret
+  audience: https://api.debtlens.com
+  database-connection: Username-Password-Authentication
+  roles:
+    system-user: role_123
+
+github:
+  token: dummy_token
+  api-url: https://api.github.com
