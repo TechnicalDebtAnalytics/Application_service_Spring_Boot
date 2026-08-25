@@ -83,8 +83,12 @@ public class CompanyServiceImpl implements CompanyService {
         // 1. Get authenticated user from security context
         User currentUser = auth0UserService.getAuthenticatedUser();
 
-        // 2. Validate GitHub membership/contributor status of current user
-        String orgName = request.githubOrganizationName().trim();
+        // 2. Extract and validate GitHub membership/contributor status of current user
+        String orgName = extractOrgName(request.githubOrganizationName());
+        if (orgName.isBlank()) {
+            throw new BadRequestException("A valid GitHub organization name or URL is required");
+        }
+
         GithubMemberValidationResponse validation = githubService.validateUserMembership(orgName, currentUser.getGithubUsername());
         if (!validation.isMember()) {
             throw new BadRequestException(validation.message());
@@ -330,5 +334,25 @@ public class CompanyServiceImpl implements CompanyService {
                     return companyMapper.toDTO(company, assignedRepoDTOs);
                 })
                 .toList();
+    }
+
+    private String extractOrgName(String input) {
+        if (input == null || input.isBlank()) {
+            return "";
+        }
+        String cleaned = input.trim();
+        if (cleaned.contains("?")) {
+            cleaned = cleaned.substring(0, cleaned.indexOf('?'));
+        }
+        if (cleaned.contains("#")) {
+            cleaned = cleaned.substring(0, cleaned.indexOf('#'));
+        }
+        while (cleaned.endsWith("/")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 1);
+        }
+        if (cleaned.contains("/")) {
+            cleaned = cleaned.substring(cleaned.lastIndexOf('/') + 1);
+        }
+        return cleaned.replace("@", "").trim();
     }
 }

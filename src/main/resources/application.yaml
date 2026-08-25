@@ -1,6 +1,15 @@
+server:
+  port: ${PORT:8080}
+
 spring:
   application:
     name: technical-debt-backend
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
 
   security:
     oauth2:
@@ -66,5 +75,5 @@ auth0:
     system-user: rol_HhD7jrh3qJjAJV4q
 
 github:
-  token: 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
+  token: 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
   api-url: ${GITHUB_API_URL:https://api.github.com}

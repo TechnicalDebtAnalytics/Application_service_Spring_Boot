@@ -50,18 +50,12 @@ public class Class_Metrics {
     @Column(name = "end_line", nullable = false)
     private Integer endLine;
 
-    @Column(name = "loc", nullable = false)
-    private Integer loc;
-
     @Column(name = "number_of_lines_of_code", nullable = false)
     private Integer numberOfLinesOfCode;
 
     // Object-oriented / structural metrics
     // Double preserves fractional analyzer values without imposing an
     // arbitrary fixed decimal scale on computed metrics.
-    @Column(name = "cyclomatic_complexity", nullable = false)
-    private Double cyclomaticComplexity;
-
     @Column(name = "dit", nullable = false)
     private Integer dit;
 
@@ -193,28 +187,12 @@ public class Class_Metrics {
         this.endLine = endLine;
     }
 
-    public Integer getLoc() {
-        return loc;
-    }
-
-    public void setLoc(Integer loc) {
-        this.loc = loc;
-    }
-
     public Integer getNumberOfLinesOfCode() {
         return numberOfLinesOfCode;
     }
 
     public void setNumberOfLinesOfCode(Integer numberOfLinesOfCode) {
         this.numberOfLinesOfCode = numberOfLinesOfCode;
-    }
-
-    public Double getCyclomaticComplexity() {
-        return cyclomaticComplexity;
-    }
-
-    public void setCyclomaticComplexity(Double cyclomaticComplexity) {
-        this.cyclomaticComplexity = cyclomaticComplexity;
     }
 
     public Integer getDit() {

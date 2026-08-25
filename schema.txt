@@ -103,8 +103,6 @@ CLASS_METRICS (
   file_path,
   start_line,
   end_line,
-  loc,
-  cyclomatic_complexity,
   cbo,
   dit,
   fan_in,
