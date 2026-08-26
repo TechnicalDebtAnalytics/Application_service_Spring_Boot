@@ -23,4 +23,7 @@ public interface Class_MetricsRepository
             Integer startLine,
             String className
     );
+
+    // Counts total classes analyzed for one analysis job.
+    int countByAnalysisJobAnalysisId(Long analysisId);
 }

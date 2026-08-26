@@ -17,7 +17,7 @@ public class Company {
     @Column(name = "company_name", nullable = false)
     private String companyName;
 
-    @Column(name = "github_organization_url", nullable = false)
+    @Column(name = "github_organization_url", nullable = false, unique = true)
     private String githubOrganizationUrl;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

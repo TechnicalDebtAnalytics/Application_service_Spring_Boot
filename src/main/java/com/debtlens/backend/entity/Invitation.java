@@ -19,6 +19,9 @@ public class Invitation {
     @Column(name = "email", nullable = false)
     private String email;
 
+    @Column(name = "github_username", length = 255)
+    private String githubUsername;
+
     // Repository that the invited user will eventually receive access to.
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "repository_id", nullable = false)
@@ -75,6 +78,14 @@ public class Invitation {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getGithubUsername() {
+        return githubUsername;
+    }
+
+    public void setGithubUsername(String githubUsername) {
+        this.githubUsername = githubUsername;
     }
 
     public Repository getRepository() {

@@ -43,6 +43,15 @@ public class CompanyController {
     }
 
     /**
+     * Get all companies where the authenticated user is a Member.
+     */
+    @GetMapping("/my-member")
+    public ResponseEntity<List<CompanyResponseDTO>> getMyMemberCompanies() {
+        List<CompanyResponseDTO> companies = companyService.getMyMemberCompanies();
+        return ResponseEntity.ok(companies);
+    }
+
+    /**
      * Get company details by company ID.
      */
     @GetMapping("/{id}")

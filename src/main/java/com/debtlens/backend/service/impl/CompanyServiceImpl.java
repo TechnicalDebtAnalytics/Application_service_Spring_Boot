@@ -34,6 +34,8 @@ public class CompanyServiceImpl implements CompanyService {
     private final CompanyRepository companyRepository;
     private final RepositoryRepository repositoryRepository;
     private final Super_AdminRepository superAdminRepository;
+    private final com.debtlens.backend.repository.MemberRepository memberRepository;
+    private final com.debtlens.backend.repository.Repo_AssignmentRepository repoAssignmentRepository;
     private final Auth0UserService auth0UserService;
     private final GithubService githubService;
     private final CompanyMapper companyMapper;
@@ -43,6 +45,8 @@ public class CompanyServiceImpl implements CompanyService {
             CompanyRepository companyRepository,
             RepositoryRepository repositoryRepository,
             Super_AdminRepository superAdminRepository,
+            com.debtlens.backend.repository.MemberRepository memberRepository,
+            com.debtlens.backend.repository.Repo_AssignmentRepository repoAssignmentRepository,
             Auth0UserService auth0UserService,
             GithubService githubService,
             CompanyMapper companyMapper,
@@ -51,6 +55,8 @@ public class CompanyServiceImpl implements CompanyService {
         this.companyRepository = companyRepository;
         this.repositoryRepository = repositoryRepository;
         this.superAdminRepository = superAdminRepository;
+        this.memberRepository = memberRepository;
+        this.repoAssignmentRepository = repoAssignmentRepository;
         this.auth0UserService = auth0UserService;
         this.githubService = githubService;
         this.companyMapper = companyMapper;
@@ -77,8 +83,12 @@ public class CompanyServiceImpl implements CompanyService {
         // 1. Get authenticated user from security context
         User currentUser = auth0UserService.getAuthenticatedUser();
 
-        // 2. Validate GitHub membership/contributor status of current user
-        String orgName = request.githubOrganizationName().trim();
+        // 2. Extract and validate GitHub membership/contributor status of current user
+        String orgName = extractOrgName(request.githubOrganizationName());
+        if (orgName.isBlank()) {
+            throw new BadRequestException("A valid GitHub organization name or URL is required");
+        }
+
         GithubMemberValidationResponse validation = githubService.validateUserMembership(orgName, currentUser.getGithubUsername());
         if (!validation.isMember()) {
             throw new BadRequestException(validation.message());
@@ -266,18 +276,83 @@ public class CompanyServiceImpl implements CompanyService {
     }
 
     /**
-     * Retrieves all repositories associated with a given company ID.
+     * Retrieves repositories for a company. Super Admins receive all company repositories.
+     * Members receive only the repositories explicitly assigned to them by the admin.
      *
      * @param companyId Primary key of the company.
-     * @return List of RepositoryResponseDTO for the company.
+     * @return List of RepositoryResponseDTO accessible to the current user.
      */
     @Override
     @Transactional(readOnly = true)
     public List<RepositoryResponseDTO> getCompanyRepositories(Long companyId) {
-        // 1. Query all repository records linked to this company ID
-        List<Repository> repos = repositoryRepository.findByCompanyCompanyId(companyId);
+        User currentUser = auth0UserService.getAuthenticatedUser();
 
-        // 2. Map and return response DTOs
-        return repos.stream().map(repositoryMapper::toDTO).toList();
+        // 1. Check if user is Super Admin for this company
+        boolean isSuperAdmin = superAdminRepository.existsByUserUserIdAndCompanyCompanyId(currentUser.getUserId(), companyId);
+        if (isSuperAdmin) {
+            List<Repository> repos = repositoryRepository.findByCompanyCompanyId(companyId);
+            return repos.stream().map(repositoryMapper::toDTO).toList();
+        }
+
+        // 2. Check if user is Member for this company
+        var memberOpt = memberRepository.findByUserUserIdAndCompanyCompanyId(currentUser.getUserId(), companyId);
+        if (memberOpt.isPresent()) {
+            List<com.debtlens.backend.entity.Repo_Assignment> assignments =
+                    repoAssignmentRepository.findByMemberMemberId(memberOpt.get().getMemberId());
+
+            return assignments.stream()
+                    .map(com.debtlens.backend.entity.Repo_Assignment::getRepository)
+                    .map(repositoryMapper::toDTO)
+                    .toList();
+        }
+
+        // 3. User is neither Super Admin nor Member
+        throw new BadRequestException("Access denied: You are not an authorized member or admin of this company");
+    }
+
+    /**
+     * Retrieves all companies where the authenticated user is a Member,
+     * including only the repositories assigned to that member.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<CompanyResponseDTO> getMyMemberCompanies() {
+        User currentUser = auth0UserService.getAuthenticatedUser();
+        List<com.debtlens.backend.entity.Member> memberships = memberRepository.findByUserUserId(currentUser.getUserId());
+
+        return memberships.stream()
+                .map(membership -> {
+                    Company company = membership.getCompany();
+                    List<com.debtlens.backend.entity.Repo_Assignment> assignments =
+                            repoAssignmentRepository.findByMemberMemberId(membership.getMemberId());
+
+                    List<RepositoryResponseDTO> assignedRepoDTOs = assignments.stream()
+                            .map(com.debtlens.backend.entity.Repo_Assignment::getRepository)
+                            .map(repositoryMapper::toDTO)
+                            .toList();
+
+                    return companyMapper.toDTO(company, assignedRepoDTOs);
+                })
+                .toList();
+    }
+
+    private String extractOrgName(String input) {
+        if (input == null || input.isBlank()) {
+            return "";
+        }
+        String cleaned = input.trim();
+        if (cleaned.contains("?")) {
+            cleaned = cleaned.substring(0, cleaned.indexOf('?'));
+        }
+        if (cleaned.contains("#")) {
+            cleaned = cleaned.substring(0, cleaned.indexOf('#'));
+        }
+        while (cleaned.endsWith("/")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 1);
+        }
+        if (cleaned.contains("/")) {
+            cleaned = cleaned.substring(cleaned.lastIndexOf('/') + 1);
+        }
+        return cleaned.replace("@", "").trim();
     }
 }

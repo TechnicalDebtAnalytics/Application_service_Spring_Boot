@@ -1,18 +1,27 @@
+server:
+  port: ${PORT:8080}
+
 spring:
   application:
     name: technical-debt-backend
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
 
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${AUTH0_ISSUER_URI}
-          audiences: ${AUTH0_AUDIENCE}
+          issuer-uri: https://dev-8nsu386inyln7qfs.us.auth0.com/
+          audiences: https://dev-8nsu386inyln7qfs.us.auth0.com/api/v2/
 
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: jdbc:postgresql://ep-raspy-sky-az97sgvp.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
+    username: neondb_owner
+    password: npg_MxTAeD4n0NLi
     driver-class-name: org.postgresql.Driver
 
     hikari:
@@ -32,17 +41,39 @@ spring:
 
   flyway:
     enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: debtlenz@gmail.com
+    password: "cjpu tesv bnzw tovu"
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          ssl:
+            trust: smtp.gmail.com
+
+app:
+  invitation:
+    frontend-base-url: ${INVITATION_FRONTEND_URL:http://localhost:5173/invitation/accept}
+    expiration-days: 7
 
 auth0:
-  domain: ${AUTH0_DOMAIN}
-  client-id: ${AUTH0_CLIENT_ID}
-  client-secret: ${AUTH0_CLIENT_SECRET}
-  audience: ${AUTH0_AUDIENCE}
+  domain: dev-8nsu386inyln7qfs.us.auth0.com
+  client-id: zOArOHQnp1pMVY4849aSwY43epgfDsrR
+  client-secret: YK3qV9H3FS52CcVN9jQjmhIs9aEcsm08i5rnQazXMvlG8VOvNX0nXeHIDvUeWH-P
+  audience: https://dev-8nsu386inyln7qfs.us.auth0.com/api/v2/
   database-connection: Username-Password-Authentication
 
   roles:
-    system-user: ${AUTH0_SYSTEM_USER_ROLE}
+    system-user: rol_HhD7jrh3qJjAJV4q
 
 github:
-  token: ${GITHUB_TOKEN}
+  token: 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
   api-url: ${GITHUB_API_URL:https://api.github.com}

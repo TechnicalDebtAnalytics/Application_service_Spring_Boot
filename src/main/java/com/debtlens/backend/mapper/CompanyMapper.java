@@ -53,4 +53,39 @@ public class CompanyMapper {
                 company.getUpdatedAt()
         );
     }
+
+    public CompanyResponseDTO toDTO(Company company, List<RepositoryResponseDTO> repos) {
+        if (company == null) {
+            return null;
+        }
+
+        List<RepositoryResponseDTO> repoDTOs = repos != null ? repos : Collections.emptyList();
+
+        String createdByName = company.getCreatedBy() != null
+                ? (company.getCreatedBy().getFirstName() != null ? company.getCreatedBy().getFirstName() + " " : "")
+                + (company.getCreatedBy().getLastName() != null ? company.getCreatedBy().getLastName() : "")
+                : "Unknown";
+
+        Long createdByUserId = company.getCreatedBy() != null
+                ? company.getCreatedBy().getUserId()
+                : null;
+
+        String orgUrl = company.getGithubOrganizationUrl();
+        String orgName = orgUrl != null && orgUrl.contains("/")
+                ? orgUrl.substring(orgUrl.lastIndexOf('/') + 1)
+                : orgUrl;
+
+        return new CompanyResponseDTO(
+                company.getCompanyId(),
+                company.getCompanyName(),
+                orgUrl,
+                orgName,
+                createdByUserId,
+                createdByName.trim(),
+                repoDTOs.size(),
+                repoDTOs,
+                company.getCreatedAt(),
+                company.getUpdatedAt()
+        );
+    }
 }

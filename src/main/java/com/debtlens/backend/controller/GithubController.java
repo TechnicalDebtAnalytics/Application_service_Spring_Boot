@@ -2,6 +2,7 @@ package com.debtlens.backend.controller;
 
 import com.debtlens.backend.exception.BadRequestException;
 import com.debtlens.backend.integration.github.GithubService;
+import com.debtlens.backend.integration.github.dto.GithubContributorResponse;
 import com.debtlens.backend.integration.github.dto.GithubMemberResponse;
 import com.debtlens.backend.integration.github.dto.GithubMemberValidationResponse;
 import com.debtlens.backend.integration.github.dto.GithubOrgResponse;
@@ -51,11 +52,11 @@ public class GithubController {
     }
 
     @GetMapping("/repos/{owner}/{repo}/contributors")
-    public ResponseEntity<List<com.debtlens.backend.integration.github.dto.GithubContributorResponse>> getContributors(
+    public ResponseEntity<List<GithubContributorResponse>> getContributors(
             @PathVariable String owner,
             @PathVariable String repo
     ) {
-        List<com.debtlens.backend.integration.github.dto.GithubContributorResponse> contributors = githubService.getContributors(owner, repo);
+        List<GithubContributorResponse> contributors = githubService.getContributors(owner, repo);
         return ResponseEntity.ok(contributors);
     }
 
