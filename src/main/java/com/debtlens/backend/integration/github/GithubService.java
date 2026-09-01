@@ -80,10 +80,10 @@ public class GithubService {
 
         // 2. Fallback: check against fetched member logins in case of casing differences
         List<GithubMemberResponse> members = githubClient.getOrganizationMembers(trimmedOrg);
-        boolean matched = members.stream()
+        boolean matchedMember = members.stream()
                 .anyMatch(m -> m.login() != null && m.login().equalsIgnoreCase(trimmedUser));
 
-        if (matched) {
+        if (matchedMember) {
             return new GithubMemberValidationResponse(
                     trimmedOrg,
                     trimmedUser,
@@ -92,12 +92,31 @@ public class GithubService {
             );
         }
 
+        // 3. Fallback: check repository contributors across the organization
+        List<GithubRepoResponse> repos = githubClient.getOrganizationRepositories(trimmedOrg);
+        for (GithubRepoResponse repo : repos) {
+            if (repo.name() != null) {
+                List<com.debtlens.backend.integration.github.dto.GithubContributorResponse> contribs =
+                        githubClient.getRepoContributors(trimmedOrg, repo.name());
+                boolean isContrib = contribs.stream()
+                        .anyMatch(c -> c.login() != null && c.login().equalsIgnoreCase(trimmedUser));
+                if (isContrib) {
+                    return new GithubMemberValidationResponse(
+                            trimmedOrg,
+                            trimmedUser,
+                            true,
+                            "User '" + trimmedUser + "' is a verified contributor of repository '" + repo.name() + "' in '" + trimmedOrg + "'."
+                    );
+                }
+            }
+        }
+
         return new GithubMemberValidationResponse(
                 trimmedOrg,
                 trimmedUser,
                 false,
-                "User '" + trimmedUser + "' was not found in the public member list of '" + trimmedOrg +
-                        "'. If you are a member, please visit https://github.com/orgs/" + trimmedOrg +
+                "User '" + trimmedUser + "' was not found in the public member list or contributors of '" + trimmedOrg +
+                        "'. If you are an org member, please visit https://github.com/orgs/" + trimmedOrg +
                         "/people, find your name, and set your membership to 'Public'."
         );
     }
