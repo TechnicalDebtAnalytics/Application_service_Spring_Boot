@@ -27,6 +27,7 @@ public class GithubClient {
     public GithubClient(GithubConfig githubConfig) {
         RestClient.Builder builder = RestClient.builder()
                 .baseUrl(githubConfig.apiUrl())
+                .defaultHeader("User-Agent", "DebtLens-App")
                 .defaultHeader("Accept", "application/vnd.github+json")
                 .defaultHeader("X-GitHub-Api-Version", "2022-11-28");
 

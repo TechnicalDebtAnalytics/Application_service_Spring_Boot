@@ -6,12 +6,16 @@ on:
       - main
       - develop
       - Muditha
+      - muditha/CloudAMQP
+      - CloudAMQP
 
   pull_request:
     branches:
       - main
       - develop
       - Muditha
+      - muditha/CloudAMQP
+      - CloudAMQP
 
 jobs:
   build:
