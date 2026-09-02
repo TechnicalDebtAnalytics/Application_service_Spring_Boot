@@ -8,6 +8,7 @@ on:
       - Muditha
       - muditha/CloudAMQP
       - CloudAMQP
+      - deployment
   pull_request:
     branches:
       - main
@@ -15,6 +16,7 @@ on:
       - Muditha
       - muditha/CloudAMQP
       - CloudAMQP
+      - deployment
 
 permissions:
   contents: read
@@ -50,7 +52,7 @@ jobs:
     name: Build & Push Docker Image
     needs: test-and-build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/muditha/CloudAMQP' || github.ref == 'refs/heads/CloudAMQP' || github.ref == 'refs/heads/Muditha')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/muditha/CloudAMQP' || github.ref == 'refs/heads/CloudAMQP' || github.ref == 'refs/heads/Muditha' || github.ref == 'refs/heads/deployment')
 
     steps:
       - name: Checkout source code
