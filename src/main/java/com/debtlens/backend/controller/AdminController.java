@@ -13,7 +13,9 @@ import java.util.Map;
 
 
 import com.debtlens.backend.dto.response.AdminCompanyResponseDTO;
+import com.debtlens.backend.dto.response.AdminUserResponseDTO;
 import com.debtlens.backend.service.AdminCompanyService;
+import com.debtlens.backend.service.AdminUserService;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
@@ -26,17 +28,20 @@ public class AdminController {
     private final CompanyRepository companyRepository;
     private final RepositoryRepository repositoryRepository;
     private final AdminCompanyService adminCompanyService;
+    private final AdminUserService adminUserService;
 
     public AdminController(
             UserRepository userRepository,
             CompanyRepository companyRepository,
             RepositoryRepository repositoryRepository,
-            AdminCompanyService adminCompanyService
+            AdminCompanyService adminCompanyService,
+            AdminUserService adminUserService
     ) {
         this.userRepository = userRepository;
         this.companyRepository = companyRepository;
         this.repositoryRepository = repositoryRepository;
         this.adminCompanyService = adminCompanyService;
+        this.adminUserService = adminUserService;
     }
 
     @GetMapping("/companies")
@@ -45,6 +50,15 @@ public class AdminController {
 
         return ResponseEntity.ok(
             adminCompanyService.getAllCompanies()
+        );
+    }
+
+    @GetMapping("/users")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    public ResponseEntity<List<AdminUserResponseDTO>> getAllUsers() {
+
+        return ResponseEntity.ok(
+            adminUserService.getAllUsers()
         );
     }
 
