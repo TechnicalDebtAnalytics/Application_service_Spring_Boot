@@ -6,11 +6,11 @@ spring:
     name: technical-debt-backend
 
   rabbitmq:
-    host: ${RABBITMQ_HOST:armadillo.rmq.cloudamqp.com}
+    host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USERNAME:sjumcaud}
-    password: ${RABBITMQ_PASSWORD:k3sPvM-CWYrTycLdHDggrd7KY6aERY_V}
-    virtual-host: ${RABBITMQ_VHOST:sjumcaud}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VHOST:/}
     ssl:
       enabled: ${RABBITMQ_SSL_ENABLED:false}
     
@@ -18,13 +18,13 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: https://dev-8nsu386inyln7qfs.us.auth0.com/
-          audiences: https://dev-8nsu386inyln7qfs.us.auth0.com/api/v2/
+          issuer-uri: https://${AUTH0_DOMAIN:dev-8nsu386inyln7qfs.us.auth0.com}/
+          audiences: ${AUTH0_AUDIENCE:https://dev-8nsu386inyln7qfs.us.auth0.com/api/v2/}
 
   datasource:
-    url: jdbc:postgresql://ep-raspy-sky-az97sgvp.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
-    username: neondb_owner
-    password: npg_MxTAeD4n0NLi
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/neondb}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
 
     hikari:
@@ -48,10 +48,10 @@ spring:
     baseline-version: 1
 
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: debtlenz@gmail.com
-    password: "cjpu tesv bnzw tovu"
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -60,7 +60,7 @@ spring:
             enable: true
             required: true
           ssl:
-            trust: smtp.gmail.com
+            trust: ${MAIL_HOST:smtp.gmail.com}
 
 app:
   invitation:
@@ -68,14 +68,14 @@ app:
     expiration-days: 7
 
 auth0:
-  domain: dev-8nsu386inyln7qfs.us.auth0.com
-  client-id: zOArOHQnp1pMVY4849aSwY43epgfDsrR
-  client-secret: YK3qV9H3FS52CcVN9jQjmhIs9aEcsm08i5rnQazXMvlG8VOvNX0nXeHIDvUeWH-P
-  audience: https://dev-8nsu386inyln7qfs.us.auth0.com/api/v2/
-  database-connection: Username-Password-Authentication
+  domain: ${AUTH0_DOMAIN:dev-8nsu386inyln7qfs.us.auth0.com}
+  client-id: ${AUTH0_CLIENT_ID:}
+  client-secret: ${AUTH0_CLIENT_SECRET:}
+  audience: ${AUTH0_AUDIENCE:https://dev-8nsu386inyln7qfs.us.auth0.com/api/v2/}
+  database-connection: ${AUTH0_DATABASE_CONNECTION:Username-Password-Authentication}
 
   roles:
-    system-user: rol_HhD7jrh3qJjAJV4q
+    system-user: ${AUTH0_ROLE_SYSTEM_USER:rol_HhD7jrh3qJjAJV4q}
 
 github:
   token: ${GITHUB_TOKEN:}
