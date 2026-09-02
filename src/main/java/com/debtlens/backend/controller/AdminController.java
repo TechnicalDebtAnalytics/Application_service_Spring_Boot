@@ -11,6 +11,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
+
+import com.debtlens.backend.dto.response.AdminCompanyResponseDTO;
+import com.debtlens.backend.service.AdminCompanyService;
+import org.springframework.http.ResponseEntity;
+
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
@@ -18,15 +25,27 @@ public class AdminController {
     private final UserRepository userRepository;
     private final CompanyRepository companyRepository;
     private final RepositoryRepository repositoryRepository;
+    private final AdminCompanyService adminCompanyService;
 
     public AdminController(
             UserRepository userRepository,
             CompanyRepository companyRepository,
-            RepositoryRepository repositoryRepository
+            RepositoryRepository repositoryRepository,
+            AdminCompanyService adminCompanyService
     ) {
         this.userRepository = userRepository;
         this.companyRepository = companyRepository;
         this.repositoryRepository = repositoryRepository;
+        this.adminCompanyService = adminCompanyService;
+    }
+
+    @GetMapping("/companies")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    public ResponseEntity<List<AdminCompanyResponseDTO>> getAllCompanies() {
+
+        return ResponseEntity.ok(
+            adminCompanyService.getAllCompanies()
+        );
     }
 
     @GetMapping("/stats")
