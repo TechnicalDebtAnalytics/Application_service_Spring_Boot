@@ -1,24 +1,21 @@
 package com.debtlens.backend.controller;
 
+import com.debtlens.backend.dto.response.AdminCompanyResponseDTO;
+import com.debtlens.backend.dto.response.AdminUserResponseDTO;
 import com.debtlens.backend.repository.CompanyRepository;
 import com.debtlens.backend.repository.RepositoryRepository;
 import com.debtlens.backend.repository.UserRepository;
-
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
-import java.util.Map;
-
-
-import com.debtlens.backend.dto.response.AdminCompanyResponseDTO;
-import com.debtlens.backend.dto.response.AdminUserResponseDTO;
 import com.debtlens.backend.service.AdminCompanyService;
 import com.debtlens.backend.service.AdminUserService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -50,6 +47,17 @@ public class AdminController {
 
         return ResponseEntity.ok(
             adminCompanyService.getAllCompanies()
+        );
+    }
+
+    @GetMapping("/companies/{companyId}/users")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    public ResponseEntity<List<AdminUserResponseDTO>> getCompanyUsers(
+            @PathVariable Long companyId
+    ) {
+
+        return ResponseEntity.ok(
+            adminCompanyService.getCompanyUsers(companyId)
         );
     }
 

@@ -21,6 +21,8 @@ import com.debtlens.backend.repository.RepositoryRepository;
 import com.debtlens.backend.repository.Super_AdminRepository;
 import com.debtlens.backend.security.Auth0UserService;
 import com.debtlens.backend.service.CompanyService;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -285,16 +287,28 @@ public class CompanyServiceImpl implements CompanyService {
     @Override
     @Transactional(readOnly = true)
     public List<RepositoryResponseDTO> getCompanyRepositories(Long companyId) {
+        // 1. Check if authenticated user is a System Admin (ROLE_SYSTEM_ADMIN)
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getAuthorities() != null) {
+            boolean isSystemAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(a -> "ROLE_SYSTEM_ADMIN".equals(a.getAuthority()));
+            if (isSystemAdmin) {
+                List<Repository> repos = repositoryRepository.findByCompanyCompanyId(companyId);
+                return repos.stream().map(repositoryMapper::toDTO).toList();
+            }
+        }
+
+        // 2. Non-System-Admin: retrieve local user from DB
         User currentUser = auth0UserService.getAuthenticatedUser();
 
-        // 1. Check if user is Super Admin for this company
+        // Check if user is Super Admin for this company
         boolean isSuperAdmin = superAdminRepository.existsByUserUserIdAndCompanyCompanyId(currentUser.getUserId(), companyId);
         if (isSuperAdmin) {
             List<Repository> repos = repositoryRepository.findByCompanyCompanyId(companyId);
             return repos.stream().map(repositoryMapper::toDTO).toList();
         }
 
-        // 2. Check if user is Member for this company
+        // Check if user is Member for this company
         var memberOpt = memberRepository.findByUserUserIdAndCompanyCompanyId(currentUser.getUserId(), companyId);
         if (memberOpt.isPresent()) {
             List<com.debtlens.backend.entity.Repo_Assignment> assignments =
@@ -306,7 +320,7 @@ public class CompanyServiceImpl implements CompanyService {
                     .toList();
         }
 
-        // 3. User is neither Super Admin nor Member
+        // User is neither Super Admin nor Member
         throw new BadRequestException("Access denied: You are not an authorized member or admin of this company");
     }
 
