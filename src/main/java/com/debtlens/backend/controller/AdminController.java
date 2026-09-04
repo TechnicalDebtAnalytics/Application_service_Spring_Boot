@@ -2,6 +2,7 @@ package com.debtlens.backend.controller;
 
 import com.debtlens.backend.dto.response.AdminCompanyResponseDTO;
 import com.debtlens.backend.dto.response.AdminUserResponseDTO;
+import com.debtlens.backend.dto.response.AnalysisResponseDTO;
 import com.debtlens.backend.repository.CompanyRepository;
 import com.debtlens.backend.repository.RepositoryRepository;
 import com.debtlens.backend.repository.UserRepository;
@@ -58,6 +59,17 @@ public class AdminController {
 
         return ResponseEntity.ok(
             adminCompanyService.getCompanyUsers(companyId)
+        );
+    }
+
+    @GetMapping("/companies/{companyId}/analysis-jobs")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    public ResponseEntity<List<AnalysisResponseDTO>> getCompanyAnalysisJobs(
+            @PathVariable Long companyId
+    ) {
+
+        return ResponseEntity.ok(
+            adminCompanyService.getCompanyAnalysisJobs(companyId)
         );
     }
 

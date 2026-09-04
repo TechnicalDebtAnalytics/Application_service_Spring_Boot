@@ -20,4 +20,8 @@ public interface Analysis_JobRepository
     // Supports lifecycle queues and operational status views.
     List<Analysis_Job>
     findByStatusOrderByStartedAtAsc(AnalysisJobStatus status);
+
+    // Returns all analysis jobs belonging to a specific company through repository relationship, newest first.
+    List<Analysis_Job>
+    findByRepositoryCompanyCompanyIdOrderByStartedAtDesc(Long companyId);
 }

@@ -2,11 +2,16 @@ package com.debtlens.backend.service.impl;
 
 import com.debtlens.backend.dto.response.AdminCompanyResponseDTO;
 import com.debtlens.backend.dto.response.AdminUserResponseDTO;
+import com.debtlens.backend.dto.response.AnalysisResponseDTO;
+import com.debtlens.backend.entity.Analysis_Job;
 import com.debtlens.backend.entity.Company;
 import com.debtlens.backend.entity.Member;
+import com.debtlens.backend.entity.Repository;
 import com.debtlens.backend.entity.Super_Admin;
 import com.debtlens.backend.entity.User;
 import com.debtlens.backend.exception.ResourceNotFoundException;
+import com.debtlens.backend.repository.Analysis_JobRepository;
+import com.debtlens.backend.repository.Class_MetricsRepository;
 import com.debtlens.backend.repository.CompanyRepository;
 import com.debtlens.backend.repository.MemberRepository;
 import com.debtlens.backend.repository.RepositoryRepository;
@@ -27,17 +32,23 @@ public class AdminCompanyServiceImpl implements AdminCompanyService {
     private final MemberRepository memberRepository;
     private final RepositoryRepository repositoryRepository;
     private final Super_AdminRepository superAdminRepository;
+    private final Analysis_JobRepository analysisJobRepository;
+    private final Class_MetricsRepository classMetricsRepository;
 
     public AdminCompanyServiceImpl(
             CompanyRepository companyRepository,
             MemberRepository memberRepository,
             RepositoryRepository repositoryRepository,
-            Super_AdminRepository superAdminRepository
+            Super_AdminRepository superAdminRepository,
+            Analysis_JobRepository analysisJobRepository,
+            Class_MetricsRepository classMetricsRepository
     ) {
         this.companyRepository = companyRepository;
         this.memberRepository = memberRepository;
         this.repositoryRepository = repositoryRepository;
         this.superAdminRepository = superAdminRepository;
+        this.analysisJobRepository = analysisJobRepository;
+        this.classMetricsRepository = classMetricsRepository;
     }
 
     @Override
@@ -135,5 +146,47 @@ public class AdminCompanyServiceImpl implements AdminCompanyService {
         }
 
         return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AnalysisResponseDTO> getCompanyAnalysisJobs(Long companyId) {
+        Company company = companyRepository.findById(companyId)
+                .orElseThrow(() -> new ResourceNotFoundException("Company not found with ID: " + companyId));
+
+        List<Analysis_Job> jobs = analysisJobRepository.findByRepositoryCompanyCompanyIdOrderByStartedAtDesc(companyId);
+
+        return jobs.stream()
+                .map(job -> {
+                    String branch = job.getRepository() != null ? job.getRepository().getDefaultBranch() : "main";
+                    int count = classMetricsRepository.countByAnalysisJobAnalysisId(job.getAnalysisId());
+
+                    String userName = null;
+                    Long userId = null;
+                    if (job.getStartedBy() != null) {
+                        userId = job.getStartedBy().getUserId();
+                        userName = (job.getStartedBy().getFirstName() != null ? job.getStartedBy().getFirstName() + " " : "")
+                                + (job.getStartedBy().getLastName() != null ? job.getStartedBy().getLastName() : "");
+                        if (userName.isBlank()) {
+                            userName = job.getStartedBy().getGithubUsername();
+                        }
+                    }
+
+                    Repository repo = job.getRepository();
+                    return new AnalysisResponseDTO(
+                            job.getAnalysisId(),
+                            repo != null ? repo.getRepositoryId() : null,
+                            repo != null ? repo.getRepositoryName() : null,
+                            repo != null ? repo.getRepositoryUrl() : null,
+                            branch,
+                            userId,
+                            userName != null ? userName.trim() : null,
+                            job.getStatus(),
+                            job.getStartedAt(),
+                            job.getCompletedAt(),
+                            count
+                    );
+                })
+                .toList();
     }
 }
