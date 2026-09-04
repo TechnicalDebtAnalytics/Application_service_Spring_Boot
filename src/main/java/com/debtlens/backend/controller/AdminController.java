@@ -82,6 +82,15 @@ public class AdminController {
         );
     }
 
+    @GetMapping("/analysis-jobs")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    public ResponseEntity<List<AnalysisResponseDTO>> getAllAnalysisJobs() {
+
+        return ResponseEntity.ok(
+            adminCompanyService.getAllAnalysisJobs()
+        );
+    }
+
     @GetMapping("/stats")
     @PreAuthorize("hasRole('SYSTEM_ADMIN')")
     public Map<String, Object> getSystemStats() {

@@ -178,6 +178,51 @@ public class AdminCompanyServiceImpl implements AdminCompanyService {
                             repo != null ? repo.getRepositoryId() : null,
                             repo != null ? repo.getRepositoryName() : null,
                             repo != null ? repo.getRepositoryUrl() : null,
+                            company.getCompanyId(),
+                            company.getCompanyName(),
+                            branch,
+                            userId,
+                            userName != null ? userName.trim() : null,
+                            job.getStatus(),
+                            job.getStartedAt(),
+                            job.getCompletedAt(),
+                            count
+                    );
+                })
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AnalysisResponseDTO> getAllAnalysisJobs() {
+        List<Analysis_Job> jobs = analysisJobRepository.findAllByOrderByStartedAtDesc();
+
+        return jobs.stream()
+                .map(job -> {
+                    String branch = job.getRepository() != null ? job.getRepository().getDefaultBranch() : "main";
+                    int count = classMetricsRepository.countByAnalysisJobAnalysisId(job.getAnalysisId());
+
+                    String userName = null;
+                    Long userId = null;
+                    if (job.getStartedBy() != null) {
+                        userId = job.getStartedBy().getUserId();
+                        userName = (job.getStartedBy().getFirstName() != null ? job.getStartedBy().getFirstName() + " " : "")
+                                + (job.getStartedBy().getLastName() != null ? job.getStartedBy().getLastName() : "");
+                        if (userName.isBlank()) {
+                            userName = job.getStartedBy().getGithubUsername();
+                        }
+                    }
+
+                    Repository repo = job.getRepository();
+                    Company company = repo != null ? repo.getCompany() : null;
+
+                    return new AnalysisResponseDTO(
+                            job.getAnalysisId(),
+                            repo != null ? repo.getRepositoryId() : null,
+                            repo != null ? repo.getRepositoryName() : null,
+                            repo != null ? repo.getRepositoryUrl() : null,
+                            company != null ? company.getCompanyId() : null,
+                            company != null ? company.getCompanyName() : null,
                             branch,
                             userId,
                             userName != null ? userName.trim() : null,

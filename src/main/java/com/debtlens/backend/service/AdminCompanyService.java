@@ -13,4 +13,6 @@ public interface AdminCompanyService {
     List<AdminUserResponseDTO> getCompanyUsers(Long companyId);
 
     List<AnalysisResponseDTO> getCompanyAnalysisJobs(Long companyId);
+
+    List<AnalysisResponseDTO> getAllAnalysisJobs();
 }
