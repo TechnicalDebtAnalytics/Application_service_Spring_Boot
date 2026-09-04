@@ -15,6 +15,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.debtlens.backend.dto.response.SystemHealthResponseDTO;
+import com.debtlens.backend.service.SystemHealthService;
+
 import java.util.List;
 import java.util.Map;
 
@@ -27,19 +30,22 @@ public class AdminController {
     private final RepositoryRepository repositoryRepository;
     private final AdminCompanyService adminCompanyService;
     private final AdminUserService adminUserService;
+    private final SystemHealthService systemHealthService;
 
     public AdminController(
             UserRepository userRepository,
             CompanyRepository companyRepository,
             RepositoryRepository repositoryRepository,
             AdminCompanyService adminCompanyService,
-            AdminUserService adminUserService
+            AdminUserService adminUserService,
+            SystemHealthService systemHealthService
     ) {
         this.userRepository = userRepository;
         this.companyRepository = companyRepository;
         this.repositoryRepository = repositoryRepository;
         this.adminCompanyService = adminCompanyService;
         this.adminUserService = adminUserService;
+        this.systemHealthService = systemHealthService;
     }
 
     @GetMapping("/companies")
@@ -103,6 +109,14 @@ public class AdminController {
                 "totalUsers", totalUsers,
                 "totalCompanies", totalCompanies,
                 "totalRepositories", totalRepositories
+        );
+    }
+
+    @GetMapping("/health")
+    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
+    public ResponseEntity<SystemHealthResponseDTO> getSystemHealth() {
+        return ResponseEntity.ok(
+            systemHealthService.getSystemHealth()
         );
     }
 }
