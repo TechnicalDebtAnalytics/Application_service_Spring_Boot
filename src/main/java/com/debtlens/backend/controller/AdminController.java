@@ -16,9 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.debtlens.backend.dto.response.SystemHealthResponseDTO;
-import com.debtlens.backend.dto.response.SystemLogResponseDTO;
 import com.debtlens.backend.service.SystemHealthService;
-import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 import java.util.Map;
@@ -119,16 +117,6 @@ public class AdminController {
     public ResponseEntity<SystemHealthResponseDTO> getSystemHealth() {
         return ResponseEntity.ok(
             systemHealthService.getSystemHealth()
-        );
-    }
-
-    @GetMapping("/logs")
-    @PreAuthorize("hasRole('SYSTEM_ADMIN')")
-    public ResponseEntity<List<SystemLogResponseDTO>> getSystemLogs(
-            @RequestParam(required = false) String status
-    ) {
-        return ResponseEntity.ok(
-            adminCompanyService.getSystemLogs(status)
         );
     }
 }
