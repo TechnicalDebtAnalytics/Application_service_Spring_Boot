@@ -3,7 +3,10 @@ package com.debtlens.backend.service.impl;
 import com.debtlens.backend.dto.response.AdminCompanyResponseDTO;
 import com.debtlens.backend.dto.response.AdminUserResponseDTO;
 import com.debtlens.backend.dto.response.AnalysisResponseDTO;
+import com.debtlens.backend.dto.response.SystemLogResponseDTO;
+import com.debtlens.backend.entity.AnalysisJobStatus;
 import com.debtlens.backend.entity.Analysis_Job;
+import com.debtlens.backend.entity.Analysis_Status_History;
 import com.debtlens.backend.entity.Company;
 import com.debtlens.backend.entity.Member;
 import com.debtlens.backend.entity.Repository;
@@ -11,6 +14,7 @@ import com.debtlens.backend.entity.Super_Admin;
 import com.debtlens.backend.entity.User;
 import com.debtlens.backend.exception.ResourceNotFoundException;
 import com.debtlens.backend.repository.Analysis_JobRepository;
+import com.debtlens.backend.repository.Analysis_Status_HistoryRepository;
 import com.debtlens.backend.repository.Class_MetricsRepository;
 import com.debtlens.backend.repository.CompanyRepository;
 import com.debtlens.backend.repository.MemberRepository;
@@ -34,6 +38,7 @@ public class AdminCompanyServiceImpl implements AdminCompanyService {
     private final Super_AdminRepository superAdminRepository;
     private final Analysis_JobRepository analysisJobRepository;
     private final Class_MetricsRepository classMetricsRepository;
+    private final Analysis_Status_HistoryRepository statusHistoryRepository;
 
     public AdminCompanyServiceImpl(
             CompanyRepository companyRepository,
@@ -41,7 +46,8 @@ public class AdminCompanyServiceImpl implements AdminCompanyService {
             RepositoryRepository repositoryRepository,
             Super_AdminRepository superAdminRepository,
             Analysis_JobRepository analysisJobRepository,
-            Class_MetricsRepository classMetricsRepository
+            Class_MetricsRepository classMetricsRepository,
+            Analysis_Status_HistoryRepository statusHistoryRepository
     ) {
         this.companyRepository = companyRepository;
         this.memberRepository = memberRepository;
@@ -49,6 +55,7 @@ public class AdminCompanyServiceImpl implements AdminCompanyService {
         this.superAdminRepository = superAdminRepository;
         this.analysisJobRepository = analysisJobRepository;
         this.classMetricsRepository = classMetricsRepository;
+        this.statusHistoryRepository = statusHistoryRepository;
     }
 
     @Override
@@ -230,6 +237,56 @@ public class AdminCompanyServiceImpl implements AdminCompanyService {
                             job.getStartedAt(),
                             job.getCompletedAt(),
                             count
+                    );
+                })
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SystemLogResponseDTO> getSystemLogs(String statusFilter) {
+        List<Analysis_Status_History> historyList;
+
+        if (statusFilter != null && !statusFilter.isBlank() && !"ALL".equalsIgnoreCase(statusFilter.trim())) {
+            try {
+                AnalysisJobStatus statusEnum = AnalysisJobStatus.valueOf(statusFilter.trim().toUpperCase());
+                historyList = statusHistoryRepository.findByStatusWithDetails(statusEnum);
+            } catch (IllegalArgumentException e) {
+                historyList = statusHistoryRepository.findAllLogsWithDetails();
+            }
+        } else {
+            historyList = statusHistoryRepository.findAllLogsWithDetails();
+        }
+
+        return historyList.stream()
+                .map(history -> {
+                    Analysis_Job job = history.getAnalysisJob();
+                    Repository repo = job != null ? job.getRepository() : null;
+                    Company company = repo != null ? repo.getCompany() : null;
+
+                    String userName = null;
+                    Long userId = null;
+                    if (job != null && job.getStartedBy() != null) {
+                        userId = job.getStartedBy().getUserId();
+                        userName = (job.getStartedBy().getFirstName() != null ? job.getStartedBy().getFirstName() + " " : "")
+                                + (job.getStartedBy().getLastName() != null ? job.getStartedBy().getLastName() : "");
+                        if (userName.isBlank()) {
+                            userName = job.getStartedBy().getGithubUsername();
+                        }
+                    }
+
+                    return new SystemLogResponseDTO(
+                            history.getStatusHistoryId(),
+                            job != null ? job.getAnalysisId() : null,
+                            history.getStatus() != null ? history.getStatus().name() : null,
+                            history.getMessage(),
+                            history.getTimestamp(),
+                            repo != null ? repo.getRepositoryId() : null,
+                            repo != null ? repo.getRepositoryName() : null,
+                            company != null ? company.getCompanyId() : null,
+                            company != null ? company.getCompanyName() : null,
+                            userId,
+                            userName != null ? userName.trim() : null
                     );
                 })
                 .toList();

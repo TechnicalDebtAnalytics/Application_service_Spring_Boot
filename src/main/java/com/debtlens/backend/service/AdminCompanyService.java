@@ -3,6 +3,7 @@ package com.debtlens.backend.service;
 import com.debtlens.backend.dto.response.AdminCompanyResponseDTO;
 import com.debtlens.backend.dto.response.AdminUserResponseDTO;
 import com.debtlens.backend.dto.response.AnalysisResponseDTO;
+import com.debtlens.backend.dto.response.SystemLogResponseDTO;
 
 import java.util.List;
 
@@ -15,4 +16,6 @@ public interface AdminCompanyService {
     List<AnalysisResponseDTO> getCompanyAnalysisJobs(Long companyId);
 
     List<AnalysisResponseDTO> getAllAnalysisJobs();
+
+    List<SystemLogResponseDTO> getSystemLogs(String statusFilter);
 }
