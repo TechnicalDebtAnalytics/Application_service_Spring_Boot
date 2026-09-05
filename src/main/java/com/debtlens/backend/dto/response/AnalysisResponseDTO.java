@@ -9,6 +9,8 @@ public record AnalysisResponseDTO(
         Long repositoryId,
         String repositoryName,
         String repositoryUrl,
+        Long companyId,
+        String companyName,
         String branch,
         Long startedByUserId,
         String startedByName,
@@ -18,3 +20,4 @@ public record AnalysisResponseDTO(
         Integer totalClassesAnalyzed
 ) {
 }
+

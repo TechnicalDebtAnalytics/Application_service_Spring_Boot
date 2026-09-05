@@ -336,11 +336,15 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
 
         Repository repo = job.getRepository();
+        Company company = repo != null ? repo.getCompany() : null;
+
         return new AnalysisResponseDTO(
                 job.getAnalysisId(),
                 repo != null ? repo.getRepositoryId() : null,
                 repo != null ? repo.getRepositoryName() : null,
                 repo != null ? repo.getRepositoryUrl() : null,
+                company != null ? company.getCompanyId() : null,
+                company != null ? company.getCompanyName() : null,
                 branch,
                 userId,
                 userName != null ? userName.trim() : null,
