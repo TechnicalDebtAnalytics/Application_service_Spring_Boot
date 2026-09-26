@@ -300,12 +300,23 @@ public class AnalysisServiceImpl implements AnalysisService {
 
             Analysis_Status_History history = new Analysis_Status_History();
             history.setAnalysisJob(job);
-            history.setStatus(AnalysisJobStatus.COMPLETED);
-            history.setMessage("Analysis completed successfully. Processed " + totalSaved + " classes.");
             history.setTimestamp(now);
-            statusHistoryRepository.save(history);
 
-            log.info("Analysis job #{} completed successfully with {} classes saved", analysisId, totalSaved);
+            if (incomingMetrics == null || incomingMetrics.isEmpty()) {
+                job.setStatus(AnalysisJobStatus.COMPLETED);
+                job.setCompletedAt(now);
+                analysisJobRepository.save(job);
+
+                history.setStatus(AnalysisJobStatus.COMPLETED);
+                history.setMessage("Analysis completed successfully. Processed 0 classes.");
+                log.info("Analysis job #{} completed successfully with no classes to send for ML processing", analysisId);
+            } else {
+                history.setStatus(AnalysisJobStatus.RUNNING);
+                history.setMessage("Static analysis completed and ML processing queued. Processed " + totalSaved + " classes.");
+                log.info("Analysis job #{} remains RUNNING while ML processes {} classes", analysisId, totalSaved);
+            }
+
+            statusHistoryRepository.save(history);
         } else {
             job.setStatus(AnalysisJobStatus.FAILED);
             job.setCompletedAt(now);
