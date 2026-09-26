@@ -250,4 +250,144 @@ class InvitationServiceTest {
         assertNotNull(response);
         assertEquals(InvitationStatus.REJECTED, response.status());
     }
+
+    @Test
+    void sendInvitations_rejectsEmptyContributorsAndMissingRepository() {
+        InvitationRequestDTO empty = new InvitationRequestDTO(100L, List.of());
+        assertEquals("At least one contributor invitation must be provided",
+                assertThrows(BadRequestException.class, () -> invitationService.sendInvitations(empty)).getMessage());
+
+        when(repositoryRepository.findById(404L)).thenReturn(Optional.empty());
+        InvitationRequestDTO missing = new InvitationRequestDTO(404L,
+                List.of(new InvitationRequestDTO.ContributorInviteDTO("alice", "alice@example.com")));
+        assertThrows(ResourceNotFoundException.class, () -> invitationService.sendInvitations(missing));
+        verifyNoInteractions(emailService);
+    }
+
+    @Test
+    void sendInvitations_rejectsRepositoryWithoutCompany() {
+        testRepo.setCompany(null);
+        when(repositoryRepository.findById(100L)).thenReturn(Optional.of(testRepo));
+        InvitationRequestDTO request = new InvitationRequestDTO(100L,
+                List.of(new InvitationRequestDTO.ContributorInviteDTO("alice", "alice@example.com")));
+
+        assertEquals("Repository is not linked to any company",
+                assertThrows(BadRequestException.class, () -> invitationService.sendInvitations(request)).getMessage());
+    }
+
+    @Test
+    void getInvitationsByRepository_rejectsMissingRepositoryAndUnauthorizedUser() {
+        when(repositoryRepository.findById(404L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> invitationService.getInvitationsByRepository(404L));
+
+        when(repositoryRepository.findById(100L)).thenReturn(Optional.of(testRepo));
+        when(auth0UserService.getAuthenticatedUser()).thenReturn(adminUser);
+        when(superAdminRepository.existsByUserUserIdAndCompanyCompanyId(1L, 10L)).thenReturn(false);
+        assertThrows(BadRequestException.class, () -> invitationService.getInvitationsByRepository(100L));
+        verify(invitationRepository, never()).findByRepositoryRepositoryId(100L);
+    }
+
+    @Test
+    void companyAndCurrentUserInvitationQueries_validateAuthorizationAndIdentity() {
+        Invitation invitation = invitationFor(new User(), InvitationStatus.PENDING);
+        when(auth0UserService.getAuthenticatedUser()).thenReturn(adminUser);
+        when(superAdminRepository.existsByUserUserIdAndCompanyCompanyId(1L, 10L)).thenReturn(true);
+        when(invitationRepository.findByRepositoryCompanyCompanyId(10L)).thenReturn(List.of(invitation));
+
+        assertEquals(1, invitationService.getInvitationsByCompany(10L).size());
+
+        when(superAdminRepository.existsByUserUserIdAndCompanyCompanyId(1L, 11L)).thenReturn(false);
+        assertThrows(BadRequestException.class, () -> invitationService.getInvitationsByCompany(11L));
+
+        adminUser.setGithubUsername("  admin-gh  ");
+        adminUser.setEmail("  admin@example.com  ");
+        when(invitationRepository.findPendingForUser("admin-gh", "admin@example.com"))
+                .thenReturn(List.of(invitation));
+        assertEquals(1, invitationService.getMyPendingInvitations().size());
+    }
+
+    @Test
+    void acceptInvitation_rejectsMissingAlreadyProcessedExpiredAndWrongRecipient() {
+        User invitee = invitee();
+        when(auth0UserService.getAuthenticatedUser()).thenReturn(invitee);
+        when(invitationRepository.findById(404L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> invitationService.acceptInvitation(404L));
+
+        Invitation accepted = invitationFor(invitee, InvitationStatus.ACCEPTED);
+        when(invitationRepository.findById(1L)).thenReturn(Optional.of(accepted));
+        assertThrows(BadRequestException.class, () -> invitationService.acceptInvitation(1L));
+
+        Invitation expired = invitationFor(invitee, InvitationStatus.PENDING);
+        expired.setExpiresAt(LocalDateTime.now().minusMinutes(1));
+        when(invitationRepository.findById(2L)).thenReturn(Optional.of(expired));
+        assertEquals("This invitation has expired",
+                assertThrows(BadRequestException.class, () -> invitationService.acceptInvitation(2L)).getMessage());
+        assertEquals(InvitationStatus.EXPIRED, expired.getStatus());
+        verify(invitationRepository).save(expired);
+
+        Invitation wrong = invitationFor(invitee, InvitationStatus.PENDING);
+        wrong.setEmail("other@example.com");
+        wrong.setGithubUsername("other");
+        when(invitationRepository.findById(3L)).thenReturn(Optional.of(wrong));
+        assertThrows(BadRequestException.class, () -> invitationService.acceptInvitation(3L));
+    }
+
+    @Test
+    void acceptInvitation_reusesExistingMemberAndAssignment() {
+        User invitee = invitee();
+        Invitation invitation = invitationFor(invitee, InvitationStatus.PENDING);
+        Member member = new Member();
+        member.setMemberId(300L);
+        member.setUser(invitee);
+        member.setCompany(testCompany);
+        when(auth0UserService.getAuthenticatedUser()).thenReturn(invitee);
+        when(invitationRepository.findById(50L)).thenReturn(Optional.of(invitation));
+        when(invitationRepository.save(invitation)).thenReturn(invitation);
+        when(memberRepository.findByUserUserIdAndCompanyCompanyId(2L, 10L)).thenReturn(Optional.of(member));
+        when(repoAssignmentRepository.existsByMemberMemberIdAndRepositoryRepositoryId(300L, 100L)).thenReturn(true);
+
+        InvitationResponseDTO response = invitationService.acceptInvitation(50L);
+
+        assertEquals(InvitationStatus.ACCEPTED, response.status());
+        verify(memberRepository, never()).save(any());
+        verify(repoAssignmentRepository, never()).save(any());
+    }
+
+    @Test
+    void rejectInvitation_rejectsMissingProcessedAndWrongRecipient() {
+        User invitee = invitee();
+        when(auth0UserService.getAuthenticatedUser()).thenReturn(invitee);
+        when(invitationRepository.findById(404L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> invitationService.rejectInvitation(404L));
+
+        Invitation processed = invitationFor(invitee, InvitationStatus.REJECTED);
+        when(invitationRepository.findById(1L)).thenReturn(Optional.of(processed));
+        assertThrows(BadRequestException.class, () -> invitationService.rejectInvitation(1L));
+
+        Invitation wrong = invitationFor(invitee, InvitationStatus.PENDING);
+        wrong.setEmail("other@example.com");
+        wrong.setGithubUsername("other");
+        when(invitationRepository.findById(2L)).thenReturn(Optional.of(wrong));
+        assertThrows(BadRequestException.class, () -> invitationService.rejectInvitation(2L));
+    }
+
+    private User invitee() {
+        User invitee = new User();
+        invitee.setUserId(2L);
+        invitee.setGithubUsername("alice");
+        invitee.setEmail("alice@example.com");
+        return invitee;
+    }
+
+    private Invitation invitationFor(User invitee, InvitationStatus status) {
+        Invitation invitation = new Invitation();
+        invitation.setInvitationId(50L);
+        invitation.setEmail(invitee.getEmail() != null ? invitee.getEmail() : "alice@example.com");
+        invitation.setGithubUsername(invitee.getGithubUsername() != null ? invitee.getGithubUsername() : "alice");
+        invitation.setRepository(testRepo);
+        invitation.setSuperAdmin(testSuperAdmin);
+        invitation.setStatus(status);
+        invitation.setExpiresAt(LocalDateTime.now().plusDays(1));
+        return invitation;
+    }
 }
