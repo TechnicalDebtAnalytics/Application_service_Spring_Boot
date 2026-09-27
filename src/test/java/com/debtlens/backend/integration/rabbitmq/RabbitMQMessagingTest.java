@@ -45,6 +45,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -106,6 +107,20 @@ class RabbitMQMessagingTest {
         );
 
         assertEquals("publish failed", exception.getMessage());
+    }
+
+    @Test
+    void FR_01_applicationMessaging_shouldRecoverOnNextPublishAfterTransientRabbitFailure() {
+        AnalysisJobMessage message = AnalysisJobMessage.builder().jobId("100").repositoryId("42").build();
+        doThrow(new AmqpException("RabbitMQ temporarily unavailable"))
+                .doNothing()
+                .when(rabbitTemplate).convertAndSend(RabbitMQConfig.ANALYSIS_JOB_QUEUE, message);
+        AnalysisJobProducer producer = new AnalysisJobProducer(rabbitTemplate);
+
+        assertThrows(AmqpException.class, () -> producer.publishAnalysisJob(message));
+        assertDoesNotThrow(() -> producer.publishAnalysisJob(message));
+
+        verify(rabbitTemplate, times(2)).convertAndSend(RabbitMQConfig.ANALYSIS_JOB_QUEUE, message);
     }
 
     @Test
