@@ -24,6 +24,7 @@ import com.debtlens.backend.repository.Repo_AssignmentRepository;
 import com.debtlens.backend.repository.RepositoryRepository;
 import com.debtlens.backend.repository.Super_AdminRepository;
 import com.debtlens.backend.security.Auth0UserService;
+import com.debtlens.backend.security.CompanyAccessService;
 import com.debtlens.backend.service.impl.CompanyServiceImpl;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +34,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
@@ -56,6 +58,7 @@ class CompanyServiceImplTest {
     @Mock MemberRepository memberRepository;
     @Mock Repo_AssignmentRepository repoAssignmentRepository;
     @Mock Auth0UserService auth0UserService;
+    @Mock CompanyAccessService companyAccessService;
     @Mock GithubService githubService;
     @Mock CompanyMapper companyMapper;
     @Mock RepositoryMapper repositoryMapper;
@@ -66,7 +69,7 @@ class CompanyServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new CompanyServiceImpl(companyRepository, repositoryRepository, superAdminRepository,
-                memberRepository, repoAssignmentRepository, auth0UserService, githubService,
+                memberRepository, repoAssignmentRepository, auth0UserService, companyAccessService, githubService,
                 companyMapper, repositoryMapper);
         owner = user(1L, "owner-gh");
         SecurityContextHolder.clearContext();
@@ -162,10 +165,12 @@ class CompanyServiceImplTest {
         CompanyResponseDTO firstDto = org.mockito.Mockito.mock(CompanyResponseDTO.class);
         CompanyResponseDTO secondDto = org.mockito.Mockito.mock(CompanyResponseDTO.class);
         when(auth0UserService.getAuthenticatedUser()).thenReturn(owner);
-        when(companyRepository.findByCreatedByUserId(1L)).thenReturn(List.of(first, second));
+        Super_Admin firstAdmin = superAdmin(owner, first);
+        Super_Admin secondAdmin = superAdmin(owner, second);
+        when(superAdminRepository.findByUserUserId(1L)).thenReturn(List.of(firstAdmin, secondAdmin));
         when(companyMapper.toDTO(first)).thenReturn(firstDto);
         when(companyMapper.toDTO(second)).thenReturn(secondDto);
-        when(companyRepository.findById(10L)).thenReturn(Optional.of(first));
+        when(companyAccessService.requireCompanyAccess(10L)).thenReturn(first);
 
         assertEquals(List.of(firstDto, secondDto), service.getMyAdminCompanies());
         assertSame(firstDto, service.getCompanyById(10L));
@@ -173,7 +178,8 @@ class CompanyServiceImplTest {
 
     @Test
     void getCompanyById_shouldFailWhenMissing() {
-        when(companyRepository.findById(404L)).thenReturn(Optional.empty());
+        when(companyAccessService.requireCompanyAccess(404L))
+                .thenThrow(new ResourceNotFoundException("Company not found with ID: 404"));
 
         assertEquals("Company not found with ID: 404",
                 assertThrows(ResourceNotFoundException.class, () -> service.getCompanyById(404L)).getMessage());
@@ -184,8 +190,7 @@ class CompanyServiceImplTest {
         Company company = company(10L, owner);
         company.addRepository(repository("101", 201L));
         CompanyResponseDTO expected = org.mockito.Mockito.mock(CompanyResponseDTO.class);
-        when(auth0UserService.getAuthenticatedUser()).thenReturn(owner);
-        when(companyRepository.findById(10L)).thenReturn(Optional.of(company));
+        when(companyAccessService.requireSuperAdminAccess(10L)).thenReturn(company);
         when(companyRepository.save(company)).thenReturn(company);
         when(companyMapper.toDTO(company)).thenReturn(expected);
 
@@ -206,18 +211,18 @@ class CompanyServiceImplTest {
         assertEquals("Please select at least one repository to add",
                 assertThrows(BadRequestException.class, () -> service.addRepositoriesToCompany(10L, List.of())).getMessage());
 
-        when(auth0UserService.getAuthenticatedUser()).thenReturn(owner);
-        when(companyRepository.findById(404L)).thenReturn(Optional.empty());
+        when(companyAccessService.requireSuperAdminAccess(404L))
+                .thenThrow(new ResourceNotFoundException("Company not found with ID: 404"));
         assertThrows(ResourceNotFoundException.class,
                 () -> service.addRepositoriesToCompany(404L, List.of(repo(1L, "r", "u", "main"))));
 
-        User other = user(2L, "other");
-        Company company = company(10L, other);
-        when(companyRepository.findById(10L)).thenReturn(Optional.of(company));
-        assertThrows(BadRequestException.class,
+        Company company = company(10L, owner);
+        when(companyAccessService.requireSuperAdminAccess(10L))
+                .thenThrow(new AccessDeniedException("Access denied"))
+                .thenReturn(company);
+        assertThrows(AccessDeniedException.class,
                 () -> service.addRepositoriesToCompany(10L, List.of(repo(1L, "r", "u", "main"))));
 
-        company.setCreatedBy(owner);
         company.addRepository(repository("1", 100L));
         assertEquals("All selected repositories are already added to this company",
                 assertThrows(BadRequestException.class,
@@ -229,7 +234,7 @@ class CompanyServiceImplTest {
         Company company = company(10L, owner);
         company.setGithubOrganizationUrl("https://github.com/acme");
         company.addRepository(repository("101", 201L));
-        when(companyRepository.findById(10L)).thenReturn(Optional.of(company));
+        when(companyAccessService.requireCompanyAccess(10L)).thenReturn(company);
         when(githubService.getRepositories("acme")).thenReturn(List.of(
                 githubRepo(101L, "existing"), githubRepo(102L, "new")
         ));
@@ -269,7 +274,7 @@ class CompanyServiceImplTest {
 
         when(memberRepository.findByUserUserIdAndCompanyCompanyId(1L, 11L)).thenReturn(Optional.empty());
         assertEquals("Access denied: You are not an authorized member or admin of this company",
-                assertThrows(BadRequestException.class, () -> service.getCompanyRepositories(11L)).getMessage());
+                assertThrows(AccessDeniedException.class, () -> service.getCompanyRepositories(11L)).getMessage());
     }
 
     @Test
@@ -305,6 +310,13 @@ class CompanyServiceImplTest {
         company.setCompanyName("Acme");
         company.setCreatedBy(creator);
         return company;
+    }
+
+    private static Super_Admin superAdmin(User user, Company company) {
+        Super_Admin superAdmin = new Super_Admin();
+        superAdmin.setUser(user);
+        superAdmin.setCompany(company);
+        return superAdmin;
     }
 
     private static Repository repository(String githubId, Long id) {

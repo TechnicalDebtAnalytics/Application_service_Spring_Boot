@@ -23,6 +23,7 @@ import com.debtlens.backend.security.Auth0UserService;
 import com.debtlens.backend.security.CompanyAccessService;
 import com.debtlens.backend.service.CompanyService;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -317,7 +318,7 @@ public class CompanyServiceImpl implements CompanyService {
         }
 
         // User is neither Super Admin nor Member
-        throw new org.springframework.security.access.AccessDeniedException(
+        throw new AccessDeniedException(
                 "Access denied: You are not an authorized member or admin of this company"
         );
     }
