@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -63,34 +64,44 @@ class Auth0UserServiceTest {
     }
 
     @Test
-    void getAuthenticatedAuth0UserId_shouldUseJwtPrincipalSubject() {
+    void getAuthenticatedAuth0UserId_shouldRejectNonJwtPrincipal() {
         Authentication authentication = mock(Authentication.class);
         when(authentication.isAuthenticated()).thenReturn(true);
         when(authentication.getPrincipal()).thenReturn(jwt("auth0|principal-user"));
         authenticate(authentication);
 
-        assertEquals("auth0|principal-user", service.getAuthenticatedAuth0UserId());
+        AuthenticationCredentialsNotFoundException exception = assertThrows(
+                AuthenticationCredentialsNotFoundException.class,
+                service::getAuthenticatedAuth0UserId
+        );
+
+        assertEquals("JWT authentication is required", exception.getMessage());
     }
 
     @Test
-    void getAuthenticatedAuth0UserId_shouldFallBackToAuthenticationName() {
+    void getAuthenticatedAuth0UserId_shouldRejectAuthenticationNameFallback() {
         Authentication authentication = mock(Authentication.class);
         when(authentication.isAuthenticated()).thenReturn(true);
         when(authentication.getPrincipal()).thenReturn("principal");
         when(authentication.getName()).thenReturn("auth0|named-user");
         authenticate(authentication);
 
-        assertEquals("auth0|named-user", service.getAuthenticatedAuth0UserId());
+        AuthenticationCredentialsNotFoundException exception = assertThrows(
+                AuthenticationCredentialsNotFoundException.class,
+                service::getAuthenticatedAuth0UserId
+        );
+
+        assertEquals("JWT authentication is required", exception.getMessage());
     }
 
     @Test
     void getAuthenticatedAuth0UserId_shouldRejectMissingSecurityContextAuthentication() {
-        BadRequestException exception = assertThrows(
-                BadRequestException.class,
+        AuthenticationCredentialsNotFoundException exception = assertThrows(
+                AuthenticationCredentialsNotFoundException.class,
                 service::getAuthenticatedAuth0UserId
         );
 
-        assertEquals("No authenticated security context found", exception.getMessage());
+        assertEquals("JWT authentication is required", exception.getMessage());
     }
 
     @Test
@@ -100,12 +111,12 @@ class Auth0UserServiceTest {
         when(authentication.getName()).thenReturn("anonymousUser");
         authenticate(authentication);
 
-        BadRequestException exception = assertThrows(
-                BadRequestException.class,
+        AuthenticationCredentialsNotFoundException exception = assertThrows(
+                AuthenticationCredentialsNotFoundException.class,
                 service::getAuthenticatedAuth0UserId
         );
 
-        assertEquals("Unable to extract Auth0 User ID from JWT token", exception.getMessage());
+        assertEquals("JWT authentication is required", exception.getMessage());
     }
 
     @Test
@@ -249,10 +260,7 @@ class Auth0UserServiceTest {
     }
 
     private static void authenticateByName(String name) {
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.isAuthenticated()).thenReturn(true);
-        when(authentication.getName()).thenReturn(name);
-        authenticate(authentication);
+        authenticate(new JwtAuthenticationToken(jwt(name), List.of(), name));
     }
 
     private static void authenticate(Authentication authentication) {
