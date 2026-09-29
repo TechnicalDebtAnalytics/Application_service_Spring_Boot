@@ -2,29 +2,32 @@ server:
   port: ${PORT:8080}
 
 spring:
+  config:
+    import: optional:file:.env[.properties]
+
   application:
     name: technical-debt-backend
 
   rabbitmq:
-    host: ${RABBITMQ_HOST:armadillo.rmq.cloudamqp.com}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USERNAME:sjumcaud}
-    password: ${RABBITMQ_PASSWORD:k3sPvM-CWYrTycLdHDggrd7KY6aERY_V}
-    virtual-host: ${RABBITMQ_VHOST:sjumcaud}
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: ${RABBITMQ_VHOST}
     ssl:
-      enabled: ${RABBITMQ_SSL_ENABLED:false}
+      enabled: ${RABBITMQ_SSL_ENABLED}
     
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: https://dev-8nsu386inyln7qfs.us.auth0.com/
-          audiences: https://dev-8nsu386inyln7qfs.us.auth0.com/api/v2/
+          issuer-uri: ${AUTH0_ISSUER_URI}
+          audiences: ${AUTH0_AUDIENCE}
 
   datasource:
-    url: jdbc:postgresql://ep-raspy-sky-az97sgvp.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
-    username: neondb_owner
-    password: npg_MxTAeD4n0NLi
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
     hikari:
@@ -48,10 +51,10 @@ spring:
     baseline-version: 1
 
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: debtlenz@gmail.com
-    password: "cjpu tesv bnzw tovu"
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
@@ -68,14 +71,14 @@ app:
     expiration-days: 7
 
 auth0:
-  domain: dev-8nsu386inyln7qfs.us.auth0.com
-  client-id: zOArOHQnp1pMVY4849aSwY43epgfDsrR
-  client-secret: YK3qV9H3FS52CcVN9jQjmhIs9aEcsm08i5rnQazXMvlG8VOvNX0nXeHIDvUeWH-P
-  audience: https://dev-8nsu386inyln7qfs.us.auth0.com/api/v2/
-  database-connection: Username-Password-Authentication
+  domain: ${AUTH0_DOMAIN}
+  client-id: ${AUTH0_CLIENT_ID}
+  client-secret: ${AUTH0_CLIENT_SECRET}
+  audience: ${AUTH0_AUDIENCE}
+  database-connection: ${AUTH0_DATABASE_CONNECTION}
 
   roles:
-    system-user: rol_HhD7jrh3qJjAJV4q
+    system-user: ${AUTH0_SYSTEM_USER_ROLE}
 
 github:
   token: ${GITHUB_TOKEN:}
