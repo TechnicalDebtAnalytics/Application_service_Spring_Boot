@@ -143,6 +143,34 @@ class Auth0UserServiceTest {
     }
 
     @Test
+    void isCurrentUser_shouldReturnTrueForAuthenticatedUsersOwnId() {
+        authenticateByName("auth0|123");
+        User user = new User();
+        user.setUserId(100L);
+        user.setAuth0UserId("auth0|123");
+        when(userRepository.findByAuth0UserId("auth0|123")).thenReturn(Optional.of(user));
+
+        assertTrue(service.isCurrentUser(100L));
+    }
+
+    @Test
+    void isCurrentUser_shouldReturnFalseForAnotherUsersId() {
+        authenticateByName("auth0|123");
+        User user = new User();
+        user.setUserId(100L);
+        user.setAuth0UserId("auth0|123");
+        when(userRepository.findByAuth0UserId("auth0|123")).thenReturn(Optional.of(user));
+
+        assertFalse(service.isCurrentUser(200L));
+    }
+
+    @Test
+    void isCurrentUser_shouldReturnFalseForNullId() {
+        assertFalse(service.isCurrentUser(null));
+        verifyNoInteractions(userRepository);
+    }
+
+    @Test
     void getAuthenticatedGithubUsername_shouldReturnRegisteredUsername() {
         authenticateByName("auth0|123");
         User user = new User();

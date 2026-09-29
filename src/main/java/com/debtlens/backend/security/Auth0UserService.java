@@ -61,6 +61,16 @@ public class Auth0UserService {
     }
 
     /**
+     * Returns whether the requested internal user ID belongs to the authenticated user.
+     */
+    public boolean isCurrentUser(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+        return userId.equals(getAuthenticatedUser().getUserId());
+    }
+
+    /**
      * Retrieves the GitHub username associated with the authenticated user.
      */
     public String getAuthenticatedGithubUsername() {
