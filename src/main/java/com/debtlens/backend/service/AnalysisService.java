@@ -13,5 +13,7 @@ public interface AnalysisService {
 
     List<AnalysisResponseDTO> getRepositoryAnalysisHistory(Long repositoryId);
 
+    List<AnalysisResponseDTO> getCompanyAnalysisHistory(Long companyId);
+
     void processAnalysisResult(AnalysisResultDTO result);
 }

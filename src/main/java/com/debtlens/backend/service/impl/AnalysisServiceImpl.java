@@ -143,6 +143,23 @@ public class AnalysisServiceImpl implements AnalysisService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<AnalysisResponseDTO> getCompanyAnalysisHistory(Long companyId) {
+        if (companyId == null) {
+            throw new BadRequestException("Company ID must not be null");
+        }
+
+        List<Analysis_Job> jobs = analysisJobRepository.findByRepositoryCompanyCompanyIdOrderByStartedAtDesc(companyId);
+        return jobs.stream()
+                .map(job -> {
+                    String branch = job.getRepository() != null ? job.getRepository().getDefaultBranch() : "main";
+                    int count = classMetricsRepository.countByAnalysisJobAnalysisId(job.getAnalysisId());
+                    return mapToResponseDTO(job, branch, count);
+                })
+                .toList();
+    }
+
+    @Override
     @Transactional
     public void processAnalysisResult(AnalysisResultDTO result) {
         log.info("Processing analysis result for jobId: {}, status: {}", result.getJobId(), result.getStatus());
