@@ -90,6 +90,62 @@ class AnalysisAuthorizationSecurityTest {
         );
     }
 
+    @Test
+    void assignedMemberCanStartAnalysisForAssignedRepository() {
+        User repositoryOwner = user(10L, "Repository", "Owner");
+        User memberUser = user(20L, "Member", "User");
+        Company company = new Company();
+        company.setCompanyId(30L);
+        company.setCompanyName("Owner Company");
+        company.setCreatedBy(repositoryOwner);
+
+        Repository repository = new Repository();
+        repository.setRepositoryId(40L);
+        repository.setRepositoryName("team-repository");
+        repository.setRepositoryUrl("https://github.com/owner/team-repository");
+        repository.setDefaultBranch("main");
+        repository.setCompany(company);
+
+        com.debtlens.backend.entity.Member member = new com.debtlens.backend.entity.Member();
+        member.setMemberId(99L);
+        member.setUser(memberUser);
+        member.setCompany(company);
+
+        com.debtlens.backend.repository.MemberRepository memberRepository = mock(com.debtlens.backend.repository.MemberRepository.class);
+        com.debtlens.backend.repository.Repo_AssignmentRepository repoAssignmentRepository = mock(com.debtlens.backend.repository.Repo_AssignmentRepository.class);
+        com.debtlens.backend.repository.Super_AdminRepository superAdminRepository = mock(com.debtlens.backend.repository.Super_AdminRepository.class);
+
+        AnalysisServiceImpl serviceWithMembers = new AnalysisServiceImpl(
+                analysisJobRepository,
+                statusHistoryRepository,
+                mock(Class_MetricsRepository.class),
+                mock(Class_CommentRepository.class),
+                repositoryRepository,
+                analysisJobProducer,
+                mock(MLJobProducer.class),
+                auth0UserService,
+                memberRepository,
+                repoAssignmentRepository,
+                superAdminRepository,
+                null
+        );
+
+        when(auth0UserService.getAuthenticatedUser()).thenReturn(memberUser);
+        when(repositoryRepository.findById(40L)).thenReturn(Optional.of(repository));
+        when(memberRepository.findByUserUserIdAndCompanyCompanyId(20L, 30L)).thenReturn(Optional.of(member));
+        when(repoAssignmentRepository.existsByMemberMemberIdAndRepositoryRepositoryId(99L, 40L)).thenReturn(true);
+        when(analysisJobRepository.save(any(Analysis_Job.class))).thenAnswer(invocation -> {
+            Analysis_Job job = invocation.getArgument(0);
+            job.setAnalysisId(50L);
+            return job;
+        });
+
+        com.debtlens.backend.dto.response.AnalysisResponseDTO response = serviceWithMembers.startAnalysis(40L, "main");
+        org.junit.jupiter.api.Assertions.assertNotNull(response);
+        org.junit.jupiter.api.Assertions.assertEquals(50L, response.analysisId());
+        verify(analysisJobProducer).publishAnalysisJob(any());
+    }
+
     private static User user(Long id, String firstName, String lastName) {
         User user = new User();
         user.setUserId(id);
