@@ -122,10 +122,10 @@ class AnalysisAuthorizationSecurityTest {
                 statusHistoryRepository,
                 mock(Class_MetricsRepository.class),
                 mock(Class_CommentRepository.class),
-                repositoryRepository,
                 analysisJobProducer,
                 mock(MLJobProducer.class),
                 auth0UserService,
+                repositoryAccessService,
                 memberRepository,
                 repoAssignmentRepository,
                 superAdminRepository,
@@ -133,7 +133,7 @@ class AnalysisAuthorizationSecurityTest {
         );
 
         when(auth0UserService.getAuthenticatedUser()).thenReturn(memberUser);
-        when(repositoryRepository.findById(40L)).thenReturn(Optional.of(repository));
+        when(repositoryAccessService.requireRepositoryWriteAccess(40L)).thenReturn(repository);
         when(memberRepository.findByUserUserIdAndCompanyCompanyId(20L, 30L)).thenReturn(Optional.of(member));
         when(repoAssignmentRepository.existsByMemberMemberIdAndRepositoryRepositoryId(99L, 40L)).thenReturn(true);
         when(analysisJobRepository.save(any(Analysis_Job.class))).thenAnswer(invocation -> {
