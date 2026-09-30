@@ -3,7 +3,6 @@ package com.debtlens.backend.controller;
 import com.debtlens.backend.dto.response.ClassRecommendationDTO;
 import com.debtlens.backend.dto.response.ReportResponseDTO;
 import com.debtlens.backend.entity.Report;
-import com.debtlens.backend.repository.ReportRepository;
 import com.debtlens.backend.service.ReportService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,11 +14,8 @@ import java.util.List;
 public class ReportController {
 
     private final ReportService reportService;
-    private final ReportRepository reportRepository;
-
-    public ReportController(ReportService reportService, ReportRepository reportRepository) {
+    public ReportController(ReportService reportService) {
         this.reportService = reportService;
-        this.reportRepository = reportRepository;
     }
 
     /**
@@ -46,7 +42,7 @@ public class ReportController {
      */
     @GetMapping("/analysis/{analysisId}/report-history")
     public ResponseEntity<List<Report>> getReportHistory(@PathVariable Long analysisId) {
-        List<Report> history = reportRepository.findByAnalysisJobAnalysisIdOrderByGeneratedAtDesc(analysisId);
+        List<Report> history = reportService.getReportHistory(analysisId);
         return ResponseEntity.ok(history);
     }
 }
