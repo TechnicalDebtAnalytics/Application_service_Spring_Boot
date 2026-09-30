@@ -53,10 +53,10 @@ public class AnalysisServiceImpl implements AnalysisService {
                 statusHistoryRepository,
                 classMetricsRepository,
                 classCommentRepository,
-                repositoryRepository,
                 analysisJobProducer,
                 mlJobProducer,
                 auth0UserService,
+                repositoryAccessService,
                 null,
                 null,
                 null,
@@ -70,10 +70,10 @@ public class AnalysisServiceImpl implements AnalysisService {
             Analysis_Status_HistoryRepository statusHistoryRepository,
             Class_MetricsRepository classMetricsRepository,
             com.debtlens.backend.repository.Class_CommentRepository classCommentRepository,
-            RepositoryRepository repositoryRepository,
             AnalysisJobProducer analysisJobProducer,
             com.debtlens.backend.integration.rabbitmq.MLJobProducer mlJobProducer,
             Auth0UserService auth0UserService,
+            RepositoryAccessService repositoryAccessService,
             @org.springframework.beans.factory.annotation.Autowired(required = false) com.debtlens.backend.repository.MemberRepository memberRepository,
             @org.springframework.beans.factory.annotation.Autowired(required = false) com.debtlens.backend.repository.Repo_AssignmentRepository repoAssignmentRepository,
             @org.springframework.beans.factory.annotation.Autowired(required = false) com.debtlens.backend.repository.Super_AdminRepository superAdminRepository,
@@ -86,11 +86,11 @@ public class AnalysisServiceImpl implements AnalysisService {
         this.analysisJobProducer = analysisJobProducer;
         this.mlJobProducer = mlJobProducer;
         this.auth0UserService = auth0UserService;
+        this.repositoryAccessService = repositoryAccessService;
         this.memberRepository = memberRepository;
         this.repoAssignmentRepository = repoAssignmentRepository;
         this.superAdminRepository = superAdminRepository;
         this.analysisProgressPublisher = analysisProgressPublisher;
-        this.repositoryAccessService = repositoryAccessService;
     }
 
     @Override
