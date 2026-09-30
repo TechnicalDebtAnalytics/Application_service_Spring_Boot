@@ -33,6 +33,7 @@ class AnalysisAuthorizationSecurityTest {
     private RepositoryRepository repositoryRepository;
     private AnalysisJobProducer analysisJobProducer;
     private Auth0UserService auth0UserService;
+    private RepositoryAccessService repositoryAccessService;
     private AnalysisServiceImpl service;
 
     @BeforeEach
@@ -42,16 +43,17 @@ class AnalysisAuthorizationSecurityTest {
         repositoryRepository = mock(RepositoryRepository.class);
         analysisJobProducer = mock(AnalysisJobProducer.class);
         auth0UserService = mock(Auth0UserService.class);
+        repositoryAccessService = mock(RepositoryAccessService.class);
 
         service = new AnalysisServiceImpl(
                 analysisJobRepository,
                 statusHistoryRepository,
                 mock(Class_MetricsRepository.class),
                 mock(Class_CommentRepository.class),
-                repositoryRepository,
                 analysisJobProducer,
                 mock(MLJobProducer.class),
-                auth0UserService
+                auth0UserService,
+                repositoryAccessService
         );
     }
 
@@ -71,8 +73,8 @@ class AnalysisAuthorizationSecurityTest {
         repository.setDefaultBranch("main");
         repository.setCompany(company);
 
-        when(auth0UserService.getAuthenticatedUser()).thenReturn(unrelatedUser);
-        when(repositoryRepository.findById(40L)).thenReturn(Optional.of(repository));
+        when(repositoryAccessService.requireRepositoryWriteAccess(40L))
+                .thenThrow(new AccessDeniedException("denied"));
         when(analysisJobRepository.save(any(Analysis_Job.class))).thenAnswer(invocation -> {
             Analysis_Job job = invocation.getArgument(0);
             job.setAnalysisId(50L);

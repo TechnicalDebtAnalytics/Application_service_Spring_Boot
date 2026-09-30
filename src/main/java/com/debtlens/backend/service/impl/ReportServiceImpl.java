@@ -4,8 +4,8 @@ import com.debtlens.backend.dto.response.ClassRecommendationDTO;
 import com.debtlens.backend.dto.response.RefactoringActionDTO;
 import com.debtlens.backend.dto.response.ReportResponseDTO;
 import com.debtlens.backend.entity.*;
-import com.debtlens.backend.exception.ResourceNotFoundException;
 import com.debtlens.backend.repository.*;
+import com.debtlens.backend.security.RepositoryAccessService;
 import com.debtlens.backend.service.ReportService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,33 +21,33 @@ public class ReportServiceImpl implements ReportService {
 
     private static final Logger log = LoggerFactory.getLogger(ReportServiceImpl.class);
 
-    private final Analysis_JobRepository analysisJobRepository;
     private final Class_MetricsRepository classMetricsRepository;
     private final Bug_PredictionRepository bugPredictionRepository;
     private final SATD_DetectionRepository satdDetectionRepository;
     private final Debt_ScoreRepository debtScoreRepository;
     private final ReportRepository reportRepository;
+    private final RepositoryAccessService repositoryAccessService;
 
     public ReportServiceImpl(
-            Analysis_JobRepository analysisJobRepository,
             Class_MetricsRepository classMetricsRepository,
             Bug_PredictionRepository bugPredictionRepository,
             SATD_DetectionRepository satdDetectionRepository,
             Debt_ScoreRepository debtScoreRepository,
-            ReportRepository reportRepository
+            ReportRepository reportRepository,
+            RepositoryAccessService repositoryAccessService
     ) {
-        this.analysisJobRepository = analysisJobRepository;
         this.classMetricsRepository = classMetricsRepository;
         this.bugPredictionRepository = bugPredictionRepository;
         this.satdDetectionRepository = satdDetectionRepository;
         this.debtScoreRepository = debtScoreRepository;
         this.reportRepository = reportRepository;
+        this.repositoryAccessService = repositoryAccessService;
     }
 
     @Override
     @Transactional
     public ReportResponseDTO generateReport(Long analysisId) {
-        Analysis_Job job = getAnalysisJob(analysisId);
+        Analysis_Job job = repositoryAccessService.requireAnalysisReadAccess(analysisId);
 
         // 1. Audit generation in the reports table
         Report reportLog = new Report();
@@ -124,8 +124,15 @@ public class ReportServiceImpl implements ReportService {
     @Override
     @Transactional(readOnly = true)
     public List<ClassRecommendationDTO> getPrioritizedRecommendations(Long analysisId) {
-        getAnalysisJob(analysisId);
+        repositoryAccessService.requireAnalysisReadAccess(analysisId);
         return buildPrioritizedRecommendations(analysisId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Report> getReportHistory(Long analysisId) {
+        repositoryAccessService.requireAnalysisReadAccess(analysisId);
+        return reportRepository.findByAnalysisJobAnalysisIdOrderByGeneratedAtDesc(analysisId);
     }
 
     private List<ClassRecommendationDTO> buildPrioritizedRecommendations(Long analysisId) {
@@ -297,8 +304,4 @@ public class ReportServiceImpl implements ReportService {
         return recommendations;
     }
 
-    private Analysis_Job getAnalysisJob(Long analysisId) {
-        return analysisJobRepository.findById(analysisId)
-                .orElseThrow(() -> new ResourceNotFoundException("Analysis job #" + analysisId + " not found"));
-    }
 }

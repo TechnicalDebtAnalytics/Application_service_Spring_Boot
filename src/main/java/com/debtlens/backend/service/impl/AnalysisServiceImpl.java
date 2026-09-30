@@ -4,13 +4,12 @@ import com.debtlens.backend.dto.messaging.*;
 import com.debtlens.backend.dto.response.AnalysisResponseDTO;
 import com.debtlens.backend.entity.*;
 import com.debtlens.backend.exception.BadRequestException;
-import com.debtlens.backend.exception.ResourceNotFoundException;
 import com.debtlens.backend.integration.rabbitmq.AnalysisJobProducer;
 import com.debtlens.backend.repository.Analysis_JobRepository;
 import com.debtlens.backend.repository.Analysis_Status_HistoryRepository;
 import com.debtlens.backend.repository.Class_MetricsRepository;
-import com.debtlens.backend.repository.RepositoryRepository;
 import com.debtlens.backend.security.Auth0UserService;
+import com.debtlens.backend.security.RepositoryAccessService;
 import com.debtlens.backend.service.AnalysisService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,29 +29,29 @@ public class AnalysisServiceImpl implements AnalysisService {
     private final Analysis_Status_HistoryRepository statusHistoryRepository;
     private final Class_MetricsRepository classMetricsRepository;
     private final com.debtlens.backend.repository.Class_CommentRepository classCommentRepository;
-    private final RepositoryRepository repositoryRepository;
     private final AnalysisJobProducer analysisJobProducer;
     private final com.debtlens.backend.integration.rabbitmq.MLJobProducer mlJobProducer;
     private final Auth0UserService auth0UserService;
+    private final RepositoryAccessService repositoryAccessService;
 
     public AnalysisServiceImpl(
             Analysis_JobRepository analysisJobRepository,
             Analysis_Status_HistoryRepository statusHistoryRepository,
             Class_MetricsRepository classMetricsRepository,
             com.debtlens.backend.repository.Class_CommentRepository classCommentRepository,
-            RepositoryRepository repositoryRepository,
             AnalysisJobProducer analysisJobProducer,
             com.debtlens.backend.integration.rabbitmq.MLJobProducer mlJobProducer,
-            Auth0UserService auth0UserService
+            Auth0UserService auth0UserService,
+            RepositoryAccessService repositoryAccessService
     ) {
         this.analysisJobRepository = analysisJobRepository;
         this.statusHistoryRepository = statusHistoryRepository;
         this.classMetricsRepository = classMetricsRepository;
         this.classCommentRepository = classCommentRepository;
-        this.repositoryRepository = repositoryRepository;
         this.analysisJobProducer = analysisJobProducer;
         this.mlJobProducer = mlJobProducer;
         this.auth0UserService = auth0UserService;
+        this.repositoryAccessService = repositoryAccessService;
     }
 
     @Override
@@ -64,8 +63,7 @@ public class AnalysisServiceImpl implements AnalysisService {
 
         User currentUser = auth0UserService.getAuthenticatedUser();
 
-        Repository repository = repositoryRepository.findById(repositoryId)
-                .orElseThrow(() -> new ResourceNotFoundException("Repository with ID " + repositoryId + " not found"));
+        Repository repository = repositoryAccessService.requireRepositoryWriteAccess(repositoryId);
 
         String targetBranch = (branch != null && !branch.isBlank())
                 ? branch.trim()
@@ -106,8 +104,7 @@ public class AnalysisServiceImpl implements AnalysisService {
     @Override
     @Transactional(readOnly = true)
     public AnalysisResponseDTO getAnalysisJob(Long analysisId) {
-        Analysis_Job job = analysisJobRepository.findById(analysisId)
-                .orElseThrow(() -> new ResourceNotFoundException("Analysis job with ID " + analysisId + " not found"));
+        Analysis_Job job = repositoryAccessService.requireAnalysisReadAccess(analysisId);
 
         List<Class_Metrics> metrics = classMetricsRepository
                 .findByAnalysisJobAnalysisIdOrderByFilePathAscStartLineAscClassNameAsc(analysisId);
@@ -119,9 +116,7 @@ public class AnalysisServiceImpl implements AnalysisService {
     @Override
     @Transactional(readOnly = true)
     public List<AnalysisResponseDTO> getRepositoryAnalysisHistory(Long repositoryId) {
-        if (!repositoryRepository.existsById(repositoryId)) {
-            throw new ResourceNotFoundException("Repository with ID " + repositoryId + " not found");
-        }
+        repositoryAccessService.requireRepositoryReadAccess(repositoryId);
 
         List<Analysis_Job> jobs = analysisJobRepository.findByRepositoryRepositoryIdOrderByStartedAtDesc(repositoryId);
         return jobs.stream()

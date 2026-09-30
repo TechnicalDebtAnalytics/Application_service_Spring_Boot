@@ -18,7 +18,9 @@ import com.debtlens.backend.service.AnalysisService;
 import com.debtlens.backend.service.AuthService;
 import com.debtlens.backend.service.CompanyService;
 import com.debtlens.backend.service.InvitationService;
+import com.debtlens.backend.service.ReportService;
 import com.debtlens.backend.service.SystemHealthService;
+import org.springframework.security.access.AccessDeniedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         CompanyController.class,
         InvitationController.class,
         AnalysisController.class,
+        ReportController.class,
         AdminController.class
 })
 @Import({SecurityConfig.class, GlobalExceptionHandler.class})
@@ -74,6 +77,9 @@ class ApiFunctionTest {
 
     @MockitoBean
     private AnalysisService analysisService;
+
+    @MockitoBean
+    private ReportService reportService;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -327,6 +333,42 @@ class ApiFunctionTest {
                 .andExpect(jsonPath("$.analysisId").value(75))
                 .andExpect(jsonPath("$.repositoryName").value("backend"))
                 .andExpect(jsonPath("$.status").value("RUNNING"));
+    }
+
+    @Test
+    void analysis_unauthorizedRepositoryAccessReturnsForbidden() throws Exception {
+        when(analysisService.getAnalysisJob(75L)).thenThrow(new AccessDeniedException("denied"));
+
+        mockMvc.perform(get("/api/analysis/75")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(USER_TOKEN)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Access is denied"));
+    }
+
+    @Test
+    void analysis_anonymousRequestIsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/analysis/75"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(analysisService);
+    }
+
+    @Test
+    void report_unauthorizedAnalysisAccessReturnsForbidden() throws Exception {
+        when(reportService.generateReport(75L)).thenThrow(new AccessDeniedException("denied"));
+
+        mockMvc.perform(get("/api/analysis/75/report")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(USER_TOKEN)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Access is denied"));
+    }
+
+    @Test
+    void report_anonymousRequestIsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/analysis/75/recommendations"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(reportService);
     }
 
     @Test
