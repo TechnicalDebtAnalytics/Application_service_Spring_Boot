@@ -5,6 +5,7 @@ import com.debtlens.backend.dto.response.ReportResponseDTO;
 import com.debtlens.backend.entity.*;
 import com.debtlens.backend.repository.*;
 import com.debtlens.backend.service.impl.ReportServiceImpl;
+import com.debtlens.backend.security.RepositoryAccessService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +18,8 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
+import org.springframework.security.access.AccessDeniedException;
 
 @ExtendWith(MockitoExtension.class)
 class ReportServiceImplTest {
@@ -33,18 +36,20 @@ class ReportServiceImplTest {
     private Debt_ScoreRepository debtScoreRepository;
     @Mock
     private ReportRepository reportRepository;
+    @Mock
+    private RepositoryAccessService repositoryAccessService;
 
     private ReportService reportService;
 
     @BeforeEach
     void setUp() {
         reportService = new ReportServiceImpl(
-                analysisJobRepository,
                 classMetricsRepository,
                 bugPredictionRepository,
                 satdDetectionRepository,
                 debtScoreRepository,
-                reportRepository
+                reportRepository,
+                repositoryAccessService
         );
     }
 
@@ -60,7 +65,7 @@ class ReportServiceImplTest {
         repo.setDefaultBranch("main");
         job.setRepository(repo);
 
-        when(analysisJobRepository.findById(analysisId)).thenReturn(Optional.of(job));
+        when(repositoryAccessService.requireAnalysisReadAccess(analysisId)).thenReturn(job);
         when(reportRepository.save(any(Report.class))).thenAnswer(i -> {
             Report r = i.getArgument(0);
             r.setReportId(1L);
@@ -132,5 +137,31 @@ class ReportServiceImplTest {
         // Low debt class (OrderUtil) should be rank 2
         assertEquals("OrderUtil", list.get(1).getClassName());
         assertEquals(2, list.get(1).getRefactorPriorityRank());
+    }
+
+    @Test
+    void generateReport_deniedAccessDoesNotPersistOrReadSensitiveData() {
+        when(repositoryAccessService.requireAnalysisReadAccess(100L))
+                .thenThrow(new AccessDeniedException("denied"));
+
+        assertThrows(AccessDeniedException.class, () -> reportService.generateReport(100L));
+
+        verifyNoInteractions(reportRepository, classMetricsRepository, bugPredictionRepository,
+                satdDetectionRepository, debtScoreRepository);
+    }
+
+    @Test
+    void getReportHistory_authorizesBeforeReturningHistory() {
+        Analysis_Job job = new Analysis_Job();
+        job.setAnalysisId(100L);
+        Report report = new Report();
+        report.setReportId(1L);
+        when(repositoryAccessService.requireAnalysisReadAccess(100L)).thenReturn(job);
+        when(reportRepository.findByAnalysisJobAnalysisIdOrderByGeneratedAtDesc(100L))
+                .thenReturn(List.of(report));
+
+        List<Report> history = reportService.getReportHistory(100L);
+
+        assertEquals(List.of(report), history);
     }
 }
