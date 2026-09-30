@@ -67,6 +67,15 @@ public class AnalysisServiceImpl implements AnalysisService {
         Repository repository = repositoryRepository.findById(repositoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Repository with ID " + repositoryId + " not found"));
 
+        if (repository.getCompany() != null && repository.getCompany().getCreatedBy() != null) {
+            User creator = repository.getCompany().getCreatedBy();
+            if (currentUser == null || !creator.getUserId().equals(currentUser.getUserId())) {
+                throw new org.springframework.security.access.AccessDeniedException(
+                        "Access denied: You are not authorized to start analysis for this repository"
+                );
+            }
+        }
+
         String targetBranch = (branch != null && !branch.isBlank())
                 ? branch.trim()
                 : (repository.getDefaultBranch() != null ? repository.getDefaultBranch() : "main");
