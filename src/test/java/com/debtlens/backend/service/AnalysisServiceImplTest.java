@@ -24,6 +24,7 @@ import com.debtlens.backend.repository.Class_CommentRepository;
 import com.debtlens.backend.repository.Class_MetricsRepository;
 import com.debtlens.backend.repository.RepositoryRepository;
 import com.debtlens.backend.security.Auth0UserService;
+import com.debtlens.backend.security.RepositoryAccessService;
 import com.debtlens.backend.service.impl.AnalysisServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,6 +63,7 @@ class AnalysisServiceImplTest {
     private AnalysisJobProducer analysisJobProducer;
     private MLJobProducer mlJobProducer;
     private Auth0UserService auth0UserService;
+    private RepositoryAccessService repositoryAccessService;
     private AnalysisServiceImpl service;
 
     @BeforeEach
@@ -74,15 +76,16 @@ class AnalysisServiceImplTest {
         analysisJobProducer = mock(AnalysisJobProducer.class);
         mlJobProducer = mock(MLJobProducer.class);
         auth0UserService = mock(Auth0UserService.class);
+        repositoryAccessService = mock(RepositoryAccessService.class);
         service = new AnalysisServiceImpl(
                 analysisJobRepository,
                 statusHistoryRepository,
                 classMetricsRepository,
                 classCommentRepository,
-                repositoryRepository,
                 analysisJobProducer,
                 mlJobProducer,
-                auth0UserService
+                auth0UserService,
+                repositoryAccessService
         );
     }
 
@@ -91,7 +94,7 @@ class AnalysisServiceImplTest {
         Repository repository = repository(42L, "debt-lens", "https://example.test/debt-lens.git", "main");
         User user = user(7L, "Ada", "Lovelace", "ada");
         when(auth0UserService.getAuthenticatedUser()).thenReturn(user);
-        when(repositoryRepository.findById(42L)).thenReturn(Optional.of(repository));
+        when(repositoryAccessService.requireRepositoryWriteAccess(42L)).thenReturn(repository);
         when(analysisJobRepository.save(any(Analysis_Job.class))).thenAnswer(invocation -> {
             Analysis_Job job = invocation.getArgument(0);
             job.setAnalysisId(100L);
@@ -133,7 +136,7 @@ class AnalysisServiceImplTest {
     void startAnalysis_shouldChooseDefaultOrMainBranch(String requestedBranch, String defaultBranch, String expectedBranch) {
         Repository repository = repository(42L, "debt-lens", "https://example.test/debt-lens.git", defaultBranch);
         when(auth0UserService.getAuthenticatedUser()).thenReturn(user(7L, "Ada", "Lovelace", "ada"));
-        when(repositoryRepository.findById(42L)).thenReturn(Optional.of(repository));
+        when(repositoryAccessService.requireRepositoryWriteAccess(42L)).thenReturn(repository);
         when(analysisJobRepository.save(any(Analysis_Job.class))).thenAnswer(invocation -> {
             Analysis_Job job = invocation.getArgument(0);
             job.setAnalysisId(100L);
@@ -153,14 +156,14 @@ class AnalysisServiceImplTest {
         BadRequestException exception = assertThrows(BadRequestException.class, () -> service.startAnalysis(null, "main"));
 
         assertEquals("Repository ID must not be null", exception.getMessage());
-        verifyNoInteractions(auth0UserService, repositoryRepository, analysisJobRepository,
+        verifyNoInteractions(auth0UserService, repositoryAccessService, analysisJobRepository,
                 statusHistoryRepository, analysisJobProducer);
     }
 
     @Test
     void startAnalysis_shouldFailWhenRepositoryDoesNotExistWithoutPersistingOrPublishing() {
-        when(auth0UserService.getAuthenticatedUser()).thenReturn(user(7L, "Ada", "Lovelace", "ada"));
-        when(repositoryRepository.findById(404L)).thenReturn(Optional.empty());
+        when(repositoryAccessService.requireRepositoryWriteAccess(404L))
+                .thenThrow(new ResourceNotFoundException("Repository with ID 404 not found"));
 
         ResourceNotFoundException exception = assertThrows(
                 ResourceNotFoundException.class,
@@ -176,7 +179,7 @@ class AnalysisServiceImplTest {
     void getAnalysisJob_shouldReturnMappedJobAndMetricCount() {
         Analysis_Job job = job(100L, AnalysisJobStatus.RUNNING, repository(42L, "debt-lens", "url", "develop"));
         job.setStartedBy(user(7L, null, null, "ada"));
-        when(analysisJobRepository.findById(100L)).thenReturn(Optional.of(job));
+        when(repositoryAccessService.requireAnalysisReadAccess(100L)).thenReturn(job);
         when(classMetricsRepository.findByAnalysisJobAnalysisIdOrderByFilePathAscStartLineAscClassNameAsc(100L))
                 .thenReturn(List.of(new Class_Metrics(), new Class_Metrics()));
 
@@ -192,7 +195,8 @@ class AnalysisServiceImplTest {
 
     @Test
     void getAnalysisJob_shouldFailWhenJobDoesNotExistWithoutLoadingMetrics() {
-        when(analysisJobRepository.findById(404L)).thenReturn(Optional.empty());
+        when(repositoryAccessService.requireAnalysisReadAccess(404L))
+                .thenThrow(new ResourceNotFoundException("Analysis job with ID 404 not found"));
 
         ResourceNotFoundException exception = assertThrows(
                 ResourceNotFoundException.class,
@@ -208,7 +212,7 @@ class AnalysisServiceImplTest {
         Repository repository = repository(42L, "debt-lens", "url", "main");
         Analysis_Job newest = job(102L, AnalysisJobStatus.COMPLETED, repository);
         Analysis_Job oldest = job(101L, AnalysisJobStatus.FAILED, repository);
-        when(repositoryRepository.existsById(42L)).thenReturn(true);
+        when(repositoryAccessService.requireRepositoryReadAccess(42L)).thenReturn(repository);
         when(analysisJobRepository.findByRepositoryRepositoryIdOrderByStartedAtDesc(42L))
                 .thenReturn(List.of(newest, oldest));
         when(classMetricsRepository.countByAnalysisJobAnalysisId(102L)).thenReturn(3);
@@ -224,7 +228,8 @@ class AnalysisServiceImplTest {
 
     @Test
     void getRepositoryAnalysisHistory_shouldFailWhenRepositoryDoesNotExist() {
-        when(repositoryRepository.existsById(404L)).thenReturn(false);
+        when(repositoryAccessService.requireRepositoryReadAccess(404L))
+                .thenThrow(new ResourceNotFoundException("Repository with ID 404 not found"));
 
         ResourceNotFoundException exception = assertThrows(
                 ResourceNotFoundException.class,

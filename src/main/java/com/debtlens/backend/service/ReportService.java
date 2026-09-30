@@ -2,6 +2,7 @@ package com.debtlens.backend.service;
 
 import com.debtlens.backend.dto.response.ClassRecommendationDTO;
 import com.debtlens.backend.dto.response.ReportResponseDTO;
+import com.debtlens.backend.entity.Report;
 
 import java.util.List;
 
@@ -19,4 +20,6 @@ public interface ReportService {
      * ordered by highest technical debt score and risk severity.
      */
     List<ClassRecommendationDTO> getPrioritizedRecommendations(Long analysisId);
+
+    List<Report> getReportHistory(Long analysisId);
 }
