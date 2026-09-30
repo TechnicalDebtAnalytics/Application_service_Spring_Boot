@@ -12,10 +12,13 @@ import com.debtlens.backend.entity.Analysis_Job;
 import com.debtlens.backend.entity.Class_Comment;
 import com.debtlens.backend.entity.Class_Metrics;
 import com.debtlens.backend.entity.Company;
+import com.debtlens.backend.entity.Member;
+import com.debtlens.backend.entity.Repo_Assignment;
 import com.debtlens.backend.entity.Repository;
 import com.debtlens.backend.entity.User;
 import com.debtlens.backend.exception.BadRequestException;
 import com.debtlens.backend.exception.ResourceNotFoundException;
+import org.springframework.security.access.AccessDeniedException;
 import com.debtlens.backend.integration.rabbitmq.AnalysisJobProducer;
 import com.debtlens.backend.integration.rabbitmq.MLJobProducer;
 import com.debtlens.backend.repository.Analysis_JobRepository;
@@ -64,6 +67,9 @@ class AnalysisServiceImplTest {
     private MLJobProducer mlJobProducer;
     private Auth0UserService auth0UserService;
     private RepositoryAccessService repositoryAccessService;
+    private com.debtlens.backend.repository.MemberRepository memberRepository;
+    private com.debtlens.backend.repository.Repo_AssignmentRepository repoAssignmentRepository;
+    private com.debtlens.backend.repository.Super_AdminRepository superAdminRepository;
     private AnalysisServiceImpl service;
 
     @BeforeEach
@@ -77,6 +83,9 @@ class AnalysisServiceImplTest {
         mlJobProducer = mock(MLJobProducer.class);
         auth0UserService = mock(Auth0UserService.class);
         repositoryAccessService = mock(RepositoryAccessService.class);
+        memberRepository = mock(com.debtlens.backend.repository.MemberRepository.class);
+        repoAssignmentRepository = mock(com.debtlens.backend.repository.Repo_AssignmentRepository.class);
+        superAdminRepository = mock(com.debtlens.backend.repository.Super_AdminRepository.class);
         service = new AnalysisServiceImpl(
                 analysisJobRepository,
                 statusHistoryRepository,
@@ -85,7 +94,11 @@ class AnalysisServiceImplTest {
                 analysisJobProducer,
                 mlJobProducer,
                 auth0UserService,
-                repositoryAccessService
+                repositoryAccessService,
+                memberRepository,
+                repoAssignmentRepository,
+                superAdminRepository,
+                null
         );
     }
 
@@ -242,10 +255,14 @@ class AnalysisServiceImplTest {
     }
 
     @Test
-    void getCompanyAnalysisHistory_shouldReturnMappedJobsForCompany() {
+    void getCompanyAnalysisHistory_shouldReturnAllJobsForSuperAdmin() {
+        User adminUser = user(1L, "Admin", "User", "admin");
+        when(auth0UserService.getAuthenticatedUser()).thenReturn(adminUser);
+        when(superAdminRepository.existsByUserUserIdAndCompanyCompanyId(1L, 9L)).thenReturn(true);
+
         Repository repo = repository(10L, "test-repo", "https://github.com/org/repo", "main");
         Analysis_Job job1 = job(101L, AnalysisJobStatus.COMPLETED, repo);
-        job1.setStartedBy(user(1L, "Jane", "Doe", "janedoe"));
+        job1.setStartedBy(adminUser);
 
         when(analysisJobRepository.findByRepositoryCompanyCompanyIdOrderByStartedAtDesc(9L))
                 .thenReturn(List.of(job1));
@@ -258,6 +275,65 @@ class AnalysisServiceImplTest {
         assertEquals("test-repo", history.get(0).repositoryName());
         assertEquals("DebtLens", history.get(0).companyName());
         assertEquals(12, history.get(0).totalClassesAnalyzed());
+    }
+
+    @Test
+    void getCompanyAnalysisHistory_shouldReturnOnlyAssignedRepoJobsForMember() {
+        User memberUser = user(2L, "Member", "User", "member");
+        when(auth0UserService.getAuthenticatedUser()).thenReturn(memberUser);
+        when(superAdminRepository.existsByUserUserIdAndCompanyCompanyId(2L, 9L)).thenReturn(false);
+
+        Member member = new Member();
+        member.setMemberId(50L);
+        member.setUser(memberUser);
+        when(memberRepository.findByUserUserIdAndCompanyCompanyId(2L, 9L)).thenReturn(Optional.of(member));
+
+        Repository assignedRepo = repository(10L, "assigned-repo", "https://github.com/org/assigned-repo", "main");
+        Repo_Assignment assignment = new Repo_Assignment();
+        assignment.setMember(member);
+        assignment.setRepository(assignedRepo);
+        when(repoAssignmentRepository.findByMemberMemberId(50L)).thenReturn(List.of(assignment));
+
+        Analysis_Job job1 = job(201L, AnalysisJobStatus.COMPLETED, assignedRepo);
+        when(analysisJobRepository.findByRepositoryRepositoryIdInOrderByStartedAtDesc(List.of(10L)))
+                .thenReturn(List.of(job1));
+        when(classMetricsRepository.countByAnalysisJobAnalysisId(201L)).thenReturn(5);
+
+        List<AnalysisResponseDTO> history = service.getCompanyAnalysisHistory(9L);
+
+        assertEquals(1, history.size());
+        assertEquals(201L, history.get(0).analysisId());
+        assertEquals("assigned-repo", history.get(0).repositoryName());
+        assertEquals(5, history.get(0).totalClassesAnalyzed());
+    }
+
+    @Test
+    void getCompanyAnalysisHistory_shouldReturnEmptyListWhenMemberHasNoAssignedRepos() {
+        User memberUser = user(2L, "Member", "User", "member");
+        when(auth0UserService.getAuthenticatedUser()).thenReturn(memberUser);
+        when(superAdminRepository.existsByUserUserIdAndCompanyCompanyId(2L, 9L)).thenReturn(false);
+
+        Member member = new Member();
+        member.setMemberId(50L);
+        member.setUser(memberUser);
+        when(memberRepository.findByUserUserIdAndCompanyCompanyId(2L, 9L)).thenReturn(Optional.of(member));
+        when(repoAssignmentRepository.findByMemberMemberId(50L)).thenReturn(List.of());
+
+        List<AnalysisResponseDTO> history = service.getCompanyAnalysisHistory(9L);
+
+        assertTrue(history.isEmpty());
+        verify(analysisJobRepository, never()).findByRepositoryRepositoryIdInOrderByStartedAtDesc(any());
+        verify(analysisJobRepository, never()).findByRepositoryCompanyCompanyIdOrderByStartedAtDesc(any());
+    }
+
+    @Test
+    void getCompanyAnalysisHistory_shouldThrowAccessDeniedWhenUserIsNotAdminOrMember() {
+        User unrelatedUser = user(99L, "Unrelated", "User", "unrelated");
+        when(auth0UserService.getAuthenticatedUser()).thenReturn(unrelatedUser);
+        when(superAdminRepository.existsByUserUserIdAndCompanyCompanyId(99L, 9L)).thenReturn(false);
+        when(memberRepository.findByUserUserIdAndCompanyCompanyId(99L, 9L)).thenReturn(Optional.empty());
+
+        assertThrows(AccessDeniedException.class, () -> service.getCompanyAnalysisHistory(9L));
     }
 
     @Test
