@@ -32,6 +32,10 @@ public class AnalysisServiceImpl implements AnalysisService {
     private final AnalysisJobProducer analysisJobProducer;
     private final com.debtlens.backend.integration.rabbitmq.MLJobProducer mlJobProducer;
     private final Auth0UserService auth0UserService;
+    private final com.debtlens.backend.repository.MemberRepository memberRepository;
+    private final com.debtlens.backend.repository.Repo_AssignmentRepository repoAssignmentRepository;
+    private final com.debtlens.backend.repository.Super_AdminRepository superAdminRepository;
+    private final com.debtlens.backend.websocket.AnalysisProgressPublisher analysisProgressPublisher;
     private final RepositoryAccessService repositoryAccessService;
 
     public AnalysisServiceImpl(
@@ -44,6 +48,37 @@ public class AnalysisServiceImpl implements AnalysisService {
             Auth0UserService auth0UserService,
             RepositoryAccessService repositoryAccessService
     ) {
+        this(
+                analysisJobRepository,
+                statusHistoryRepository,
+                classMetricsRepository,
+                classCommentRepository,
+                repositoryRepository,
+                analysisJobProducer,
+                mlJobProducer,
+                auth0UserService,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public AnalysisServiceImpl(
+            Analysis_JobRepository analysisJobRepository,
+            Analysis_Status_HistoryRepository statusHistoryRepository,
+            Class_MetricsRepository classMetricsRepository,
+            com.debtlens.backend.repository.Class_CommentRepository classCommentRepository,
+            RepositoryRepository repositoryRepository,
+            AnalysisJobProducer analysisJobProducer,
+            com.debtlens.backend.integration.rabbitmq.MLJobProducer mlJobProducer,
+            Auth0UserService auth0UserService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.debtlens.backend.repository.MemberRepository memberRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.debtlens.backend.repository.Repo_AssignmentRepository repoAssignmentRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.debtlens.backend.repository.Super_AdminRepository superAdminRepository,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.debtlens.backend.websocket.AnalysisProgressPublisher analysisProgressPublisher
+    ) {
         this.analysisJobRepository = analysisJobRepository;
         this.statusHistoryRepository = statusHistoryRepository;
         this.classMetricsRepository = classMetricsRepository;
@@ -51,6 +86,10 @@ public class AnalysisServiceImpl implements AnalysisService {
         this.analysisJobProducer = analysisJobProducer;
         this.mlJobProducer = mlJobProducer;
         this.auth0UserService = auth0UserService;
+        this.memberRepository = memberRepository;
+        this.repoAssignmentRepository = repoAssignmentRepository;
+        this.superAdminRepository = superAdminRepository;
+        this.analysisProgressPublisher = analysisProgressPublisher;
         this.repositoryAccessService = repositoryAccessService;
     }
 
@@ -65,12 +104,38 @@ public class AnalysisServiceImpl implements AnalysisService {
 
         Repository repository = repositoryAccessService.requireRepositoryWriteAccess(repositoryId);
 
-        if (repository.getCompany() != null && repository.getCompany().getCreatedBy() != null) {
-            User creator = repository.getCompany().getCreatedBy();
-            if (currentUser == null || !creator.getUserId().equals(currentUser.getUserId())) {
-                throw new org.springframework.security.access.AccessDeniedException(
-                        "Access denied: You are not authorized to start analysis for this repository"
-                );
+        if (repository.getCompany() != null) {
+            Company company = repository.getCompany();
+            boolean hasAuthRules = company.getCreatedBy() != null || (superAdminRepository != null && memberRepository != null);
+
+            if (hasAuthRules) {
+                boolean isAuthorized = false;
+
+                if (currentUser != null) {
+                    // 1. Check if current user is Super Admin or Company Creator
+                    if (company.getCreatedBy() != null && company.getCreatedBy().getUserId().equals(currentUser.getUserId())) {
+                        isAuthorized = true;
+                    } else if (superAdminRepository != null && superAdminRepository.findByUserUserIdAndCompanyCompanyId(currentUser.getUserId(), company.getCompanyId()).isPresent()) {
+                        isAuthorized = true;
+                    }
+
+                    // 2. Check if current user is an assigned Member of this specific repository
+                    if (!isAuthorized && memberRepository != null && repoAssignmentRepository != null) {
+                        var memberOpt = memberRepository.findByUserUserIdAndCompanyCompanyId(currentUser.getUserId(), company.getCompanyId());
+                        if (memberOpt.isPresent()) {
+                            isAuthorized = repoAssignmentRepository.existsByMemberMemberIdAndRepositoryRepositoryId(
+                                    memberOpt.get().getMemberId(),
+                                    repository.getRepositoryId()
+                            );
+                        }
+                    }
+                }
+
+                if (!isAuthorized) {
+                    throw new org.springframework.security.access.AccessDeniedException(
+                            "Access denied: You are not authorized to start analysis for this repository"
+                    );
+                }
             }
         }
 
@@ -106,6 +171,19 @@ public class AnalysisServiceImpl implements AnalysisService {
         analysisJobProducer.publishAnalysisJob(jobMessage);
 
         log.info("Analysis job #{} created and dispatched to RabbitMQ for repo {}", savedJob.getAnalysisId(), repository.getRepositoryName());
+
+        // 4. Broadcast live state via WebSocket
+        if (analysisProgressPublisher != null) {
+            analysisProgressPublisher.broadcastProgress(AnalysisProgressMessage.builder()
+                    .jobId(savedJob.getAnalysisId())
+                    .repositoryId(repository.getRepositoryId())
+                    .repositoryName(repository.getRepositoryName())
+                    .branch(targetBranch)
+                    .status("QUEUED")
+                    .message("Analysis job #" + savedJob.getAnalysisId() + " queued for " + repository.getRepositoryName() + " (" + targetBranch + ")")
+                    .timestamp(LocalDateTime.now())
+                    .build());
+        }
 
         return mapToResponseDTO(savedJob, targetBranch, 0);
     }
