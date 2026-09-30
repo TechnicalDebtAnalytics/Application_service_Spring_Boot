@@ -18,7 +18,8 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(analysisProgressPublisher, "/ws/analysis")
+        registry.addHandler(analysisProgressPublisher, "/ws/analysis", "/ws/analysis/")
+                .setAllowedOrigins("*")
                 .setAllowedOriginPatterns("*");
     }
 }
