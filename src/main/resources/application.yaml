@@ -63,7 +63,7 @@ spring:
             enable: true
             required: true
           ssl:
-            trust: smtp.gmail.com
+            trust: ${MAIL_HOST:smtp.gmail.com}
 
 app:
   invitation:
