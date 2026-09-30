@@ -4,6 +4,7 @@ import com.debtlens.backend.config.Auth0RoleConfig;
 import com.debtlens.backend.dto.request.RegisterRequest;
 import com.debtlens.backend.dto.response.RegistrationResponse;
 import com.debtlens.backend.entity.User;
+import com.debtlens.backend.exception.BadRequestException;
 import com.debtlens.backend.integration.auth0.Auth0Client;
 import com.debtlens.backend.integration.auth0.Auth0CreateUserResponse;
 import com.debtlens.backend.repository.UserRepository;
@@ -34,12 +35,12 @@ public class AuthServiceImpl implements AuthService {
 
         // 1. Check whether email already exists
         if (userRepository.existsByEmail(request.email())) {
-            throw new RuntimeException("A user with this email already exists");
+            throw new BadRequestException("A user with this email already exists");
         }
 
         // 2. Check whether githubUsername already exists
         if (userRepository.existsByGithubUsername(request.githubUsername().trim())) {
-            throw new RuntimeException("A user with this GitHub username already exists");
+            throw new BadRequestException("A user with this GitHub username already exists");
         }
 
         // 3. Get SYSTEM_USER role ID

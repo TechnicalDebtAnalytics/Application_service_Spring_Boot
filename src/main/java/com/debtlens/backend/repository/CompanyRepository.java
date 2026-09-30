@@ -2,6 +2,8 @@ package com.debtlens.backend.repository;
 
 import com.debtlens.backend.entity.Company;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -15,4 +17,26 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
     boolean existsByGithubOrganizationUrl(String githubOrganizationUrl);
 
     boolean existsByCompanyName(String companyName);
+
+    @Query("""
+            SELECT c
+            FROM Company c
+            WHERE c.companyId = :companyId
+              AND (
+                EXISTS (
+                    SELECT sa.superAdminId
+                    FROM Super_Admin sa
+                    WHERE sa.company = c AND sa.user.userId = :userId
+                )
+                OR EXISTS (
+                    SELECT m.memberId
+                    FROM Member m
+                    WHERE m.company = c AND m.user.userId = :userId
+                )
+              )
+            """)
+    Optional<Company> findAccessibleByCompanyIdAndUserId(
+            @Param("companyId") Long companyId,
+            @Param("userId") Long userId
+    );
 }

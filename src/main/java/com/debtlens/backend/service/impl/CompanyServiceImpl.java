@@ -20,8 +20,10 @@ import com.debtlens.backend.repository.CompanyRepository;
 import com.debtlens.backend.repository.RepositoryRepository;
 import com.debtlens.backend.repository.Super_AdminRepository;
 import com.debtlens.backend.security.Auth0UserService;
+import com.debtlens.backend.security.CompanyAccessService;
 import com.debtlens.backend.service.CompanyService;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +41,7 @@ public class CompanyServiceImpl implements CompanyService {
     private final com.debtlens.backend.repository.MemberRepository memberRepository;
     private final com.debtlens.backend.repository.Repo_AssignmentRepository repoAssignmentRepository;
     private final Auth0UserService auth0UserService;
+    private final CompanyAccessService companyAccessService;
     private final GithubService githubService;
     private final CompanyMapper companyMapper;
     private final RepositoryMapper repositoryMapper;
@@ -50,6 +53,7 @@ public class CompanyServiceImpl implements CompanyService {
             com.debtlens.backend.repository.MemberRepository memberRepository,
             com.debtlens.backend.repository.Repo_AssignmentRepository repoAssignmentRepository,
             Auth0UserService auth0UserService,
+            CompanyAccessService companyAccessService,
             GithubService githubService,
             CompanyMapper companyMapper,
             RepositoryMapper repositoryMapper
@@ -60,6 +64,7 @@ public class CompanyServiceImpl implements CompanyService {
         this.memberRepository = memberRepository;
         this.repoAssignmentRepository = repoAssignmentRepository;
         this.auth0UserService = auth0UserService;
+        this.companyAccessService = companyAccessService;
         this.githubService = githubService;
         this.companyMapper = companyMapper;
         this.repositoryMapper = repositoryMapper;
@@ -145,8 +150,11 @@ public class CompanyServiceImpl implements CompanyService {
         // 1. Get current authenticated user
         User currentUser = auth0UserService.getAuthenticatedUser();
 
-        // 2. Fetch all companies created by this user
-        List<Company> companies = companyRepository.findByCreatedByUserId(currentUser.getUserId());
+        // 2. Fetch every company where this user has a Super Admin assignment
+        List<Company> companies = superAdminRepository.findByUserUserId(currentUser.getUserId())
+                .stream()
+                .map(Super_Admin::getCompany)
+                .toList();
 
         // 3. Convert entities to response DTOs
         return companies.stream()
@@ -164,9 +172,7 @@ public class CompanyServiceImpl implements CompanyService {
     @Override
     @Transactional(readOnly = true)
     public CompanyResponseDTO getCompanyById(Long companyId) {
-        // 1. Find company by ID or throw 404 if not found
-        Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new ResourceNotFoundException("Company not found with ID: " + companyId));
+        Company company = companyAccessService.requireCompanyAccess(companyId);
 
         // 2. Map and return response DTO
         return companyMapper.toDTO(company);
@@ -192,15 +198,8 @@ public class CompanyServiceImpl implements CompanyService {
             throw new BadRequestException("Please select at least one repository to add");
         }
 
-        // 2. Authenticate user and fetch the target company
-        User currentUser = auth0UserService.getAuthenticatedUser();
-        Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new ResourceNotFoundException("Company not found with ID: " + companyId));
-
-        // 3. Check authorization: only the creating Super Admin can modify the company
-        if (!company.getCreatedBy().getUserId().equals(currentUser.getUserId())) {
-            throw new BadRequestException("Access denied: You are not the Super Admin who created this company");
-        }
+        // 2. Only a company Super Admin may modify its repositories.
+        Company company = companyAccessService.requireSuperAdminAccess(companyId);
 
         // 4. Identify existing repository IDs to prevent duplicates
         Set<String> existingGithubRepoIds = company.getRepositories().stream()
@@ -243,9 +242,7 @@ public class CompanyServiceImpl implements CompanyService {
     @Override
     @Transactional(readOnly = true)
     public List<CompanyAvailableRepoDTO> getAvailableRepositoriesForCompany(Long companyId) {
-        // 1. Fetch company or throw 404
-        Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new ResourceNotFoundException("Company not found with ID: " + companyId));
+        Company company = companyAccessService.requireCompanyAccess(companyId);
 
         // 2. Extract GitHub organization login name from the organization URL
         String orgUrl = company.getGithubOrganizationUrl();
@@ -321,7 +318,9 @@ public class CompanyServiceImpl implements CompanyService {
         }
 
         // User is neither Super Admin nor Member
-        throw new BadRequestException("Access denied: You are not an authorized member or admin of this company");
+        throw new AccessDeniedException(
+                "Access denied: You are not an authorized member or admin of this company"
+        );
     }
 
     /**

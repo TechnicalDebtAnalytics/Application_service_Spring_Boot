@@ -8,8 +8,8 @@ import com.debtlens.backend.integration.auth0.Auth0RoleResponse;
 import com.debtlens.backend.repository.UserRepository;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 
@@ -32,32 +32,21 @@ public class Auth0UserService {
     public String getAuthenticatedAuth0UserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new BadRequestException("No authenticated security context found");
+        if (!(authentication instanceof JwtAuthenticationToken jwtAuth)
+                || !authentication.isAuthenticated()) {
+            throw new AuthenticationCredentialsNotFoundException(
+                    "JWT authentication is required"
+            );
         }
 
-        if (authentication instanceof JwtAuthenticationToken jwtAuth) {
-            Jwt jwt = jwtAuth.getToken();
-            String sub = jwt.getSubject();
-            if (sub != null && !sub.isBlank()) {
-                return sub;
-            }
+        String subject = jwtAuth.getToken().getSubject();
+        if (subject != null && !subject.isBlank()) {
+            return subject;
         }
 
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof Jwt jwt) {
-            String sub = jwt.getSubject();
-            if (sub != null && !sub.isBlank()) {
-                return sub;
-            }
-        }
-
-        String name = authentication.getName();
-        if (name != null && !name.isBlank() && !"anonymousUser".equalsIgnoreCase(name)) {
-            return name;
-        }
-
-        throw new BadRequestException("Unable to extract Auth0 User ID from JWT token");
+        throw new AuthenticationCredentialsNotFoundException(
+                "JWT subject claim is required"
+        );
     }
 
     /**
@@ -69,6 +58,16 @@ public class Auth0UserService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "User with Auth0 ID '" + auth0UserId + "' not found in database"
                 ));
+    }
+
+    /**
+     * Returns whether the requested internal user ID belongs to the authenticated user.
+     */
+    public boolean isCurrentUser(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+        return userId.equals(getAuthenticatedUser().getUserId());
     }
 
     /**
