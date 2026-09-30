@@ -83,6 +83,11 @@ public class SecurityConfig {
                         ).permitAll()
 
                         .requestMatchers(
+                                "/ws/**",
+                                "/ws/analysis/**"
+                        ).permitAll()
+
+                        .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/github/orgs/*",
                                 "/api/github/orgs/*/repos",
