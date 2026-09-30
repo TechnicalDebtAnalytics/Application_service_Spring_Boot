@@ -13,12 +13,16 @@ import com.debtlens.backend.security.RepositoryAccessService;
 import com.debtlens.backend.service.AnalysisService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class AnalysisServiceImpl implements AnalysisService {
@@ -104,41 +108,6 @@ public class AnalysisServiceImpl implements AnalysisService {
 
         Repository repository = repositoryAccessService.requireRepositoryWriteAccess(repositoryId);
 
-        if (repository.getCompany() != null) {
-            Company company = repository.getCompany();
-            boolean hasAuthRules = company.getCreatedBy() != null || (superAdminRepository != null && memberRepository != null);
-
-            if (hasAuthRules) {
-                boolean isAuthorized = false;
-
-                if (currentUser != null) {
-                    // 1. Check if current user is Super Admin or Company Creator
-                    if (company.getCreatedBy() != null && company.getCreatedBy().getUserId().equals(currentUser.getUserId())) {
-                        isAuthorized = true;
-                    } else if (superAdminRepository != null && superAdminRepository.findByUserUserIdAndCompanyCompanyId(currentUser.getUserId(), company.getCompanyId()).isPresent()) {
-                        isAuthorized = true;
-                    }
-
-                    // 2. Check if current user is an assigned Member of this specific repository
-                    if (!isAuthorized && memberRepository != null && repoAssignmentRepository != null) {
-                        var memberOpt = memberRepository.findByUserUserIdAndCompanyCompanyId(currentUser.getUserId(), company.getCompanyId());
-                        if (memberOpt.isPresent()) {
-                            isAuthorized = repoAssignmentRepository.existsByMemberMemberIdAndRepositoryRepositoryId(
-                                    memberOpt.get().getMemberId(),
-                                    repository.getRepositoryId()
-                            );
-                        }
-                    }
-                }
-
-                if (!isAuthorized) {
-                    throw new org.springframework.security.access.AccessDeniedException(
-                            "Access denied: You are not authorized to start analysis for this repository"
-                    );
-                }
-            }
-        }
-
         String targetBranch = (branch != null && !branch.isBlank())
                 ? branch.trim()
                 : (repository.getDefaultBranch() != null ? repository.getDefaultBranch() : "main");
@@ -222,14 +191,70 @@ public class AnalysisServiceImpl implements AnalysisService {
             throw new BadRequestException("Company ID must not be null");
         }
 
-        List<Analysis_Job> jobs = analysisJobRepository.findByRepositoryCompanyCompanyIdOrderByStartedAtDesc(companyId);
-        return jobs.stream()
-                .map(job -> {
-                    String branch = job.getRepository() != null ? job.getRepository().getDefaultBranch() : "main";
-                    int count = classMetricsRepository.countByAnalysisJobAnalysisId(job.getAnalysisId());
-                    return mapToResponseDTO(job, branch, count);
-                })
-                .toList();
+        // 1. Check if authenticated user is a System Admin (ROLE_SYSTEM_ADMIN)
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getAuthorities() != null) {
+            boolean isSystemAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(a -> "ROLE_SYSTEM_ADMIN".equals(a.getAuthority()));
+            if (isSystemAdmin) {
+                List<Analysis_Job> jobs = analysisJobRepository.findByRepositoryCompanyCompanyIdOrderByStartedAtDesc(companyId);
+                return jobs.stream()
+                        .map(job -> {
+                            String branch = job.getRepository() != null ? job.getRepository().getDefaultBranch() : "main";
+                            int count = classMetricsRepository.countByAnalysisJobAnalysisId(job.getAnalysisId());
+                            return mapToResponseDTO(job, branch, count);
+                        })
+                        .toList();
+            }
+        }
+
+        // 2. Non-System-Admin: retrieve authenticated user from Auth0
+        User currentUser = auth0UserService.getAuthenticatedUser();
+        Long userId = currentUser.getUserId();
+
+        // 3. Check if user is Super Admin for this company
+        boolean isSuperAdmin = (superAdminRepository != null && superAdminRepository.existsByUserUserIdAndCompanyCompanyId(userId, companyId));
+        if (isSuperAdmin) {
+            List<Analysis_Job> jobs = analysisJobRepository.findByRepositoryCompanyCompanyIdOrderByStartedAtDesc(companyId);
+            return jobs.stream()
+                    .map(job -> {
+                        String branch = job.getRepository() != null ? job.getRepository().getDefaultBranch() : "main";
+                        int count = classMetricsRepository.countByAnalysisJobAnalysisId(job.getAnalysisId());
+                        return mapToResponseDTO(job, branch, count);
+                    })
+                    .toList();
+        }
+
+        // 4. Check if user is Member for this company
+        if (memberRepository != null && repoAssignmentRepository != null) {
+            var memberOpt = memberRepository.findByUserUserIdAndCompanyCompanyId(userId, companyId);
+            if (memberOpt.isPresent()) {
+                List<Repo_Assignment> assignments = repoAssignmentRepository.findByMemberMemberId(memberOpt.get().getMemberId());
+                List<Long> assignedRepoIds = assignments.stream()
+                        .map(a -> a.getRepository() != null ? a.getRepository().getRepositoryId() : null)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList();
+
+                if (assignedRepoIds.isEmpty()) {
+                    return List.of();
+                }
+
+                List<Analysis_Job> jobs = analysisJobRepository.findByRepositoryRepositoryIdInOrderByStartedAtDesc(assignedRepoIds);
+                return jobs.stream()
+                        .map(job -> {
+                            String branch = job.getRepository() != null ? job.getRepository().getDefaultBranch() : "main";
+                            int count = classMetricsRepository.countByAnalysisJobAnalysisId(job.getAnalysisId());
+                            return mapToResponseDTO(job, branch, count);
+                        })
+                        .toList();
+            }
+        }
+
+        // 5. User is neither Super Admin nor Member of this company
+        throw new AccessDeniedException(
+                "Access denied: You are not authorized to view analysis history for company " + companyId
+        );
     }
 
     @Override

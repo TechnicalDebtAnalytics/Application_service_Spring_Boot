@@ -25,6 +25,10 @@ public interface Analysis_JobRepository
     List<Analysis_Job>
     findByRepositoryCompanyCompanyIdOrderByStartedAtDesc(Long companyId);
 
+    // Returns all analysis jobs for the given list of repository IDs, newest first.
+    List<Analysis_Job>
+    findByRepositoryRepositoryIdInOrderByStartedAtDesc(List<Long> repositoryIds);
+
     // Returns all analysis jobs across all companies, newest first.
     List<Analysis_Job>
     findAllByOrderByStartedAtDesc();

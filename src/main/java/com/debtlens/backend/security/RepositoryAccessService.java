@@ -77,7 +77,14 @@ public class RepositoryAccessService {
     private void requireTenantRepositoryAccess(Repository repository) {
         User currentUser = auth0UserService.getAuthenticatedUser();
         Long userId = currentUser.getUserId();
+        if (repository.getCompany() == null) {
+            return;
+        }
         Long companyId = repository.getCompany().getCompanyId();
+
+        if (repository.getCompany().getCreatedBy() != null && repository.getCompany().getCreatedBy().getUserId().equals(userId)) {
+            return;
+        }
 
         if (superAdminRepository.existsByUserUserIdAndCompanyCompanyId(userId, companyId)) {
             return;
