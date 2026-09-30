@@ -17,11 +17,12 @@ import com.debtlens.backend.repository.InvitationRepository;
 import com.debtlens.backend.repository.MemberRepository;
 import com.debtlens.backend.repository.Repo_AssignmentRepository;
 import com.debtlens.backend.repository.RepositoryRepository;
-import com.debtlens.backend.repository.Super_AdminRepository;
 import com.debtlens.backend.security.Auth0UserService;
+import com.debtlens.backend.security.CompanyAccessService;
 import com.debtlens.backend.service.EmailService;
 import com.debtlens.backend.service.InvitationService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,10 +36,10 @@ public class InvitationServiceImpl implements InvitationService {
 
     private final InvitationRepository invitationRepository;
     private final RepositoryRepository repositoryRepository;
-    private final Super_AdminRepository superAdminRepository;
     private final MemberRepository memberRepository;
     private final Repo_AssignmentRepository repoAssignmentRepository;
     private final Auth0UserService auth0UserService;
+    private final CompanyAccessService companyAccessService;
     private final EmailService emailService;
     private final InvitationMapper invitationMapper;
 
@@ -48,19 +49,19 @@ public class InvitationServiceImpl implements InvitationService {
     public InvitationServiceImpl(
             InvitationRepository invitationRepository,
             RepositoryRepository repositoryRepository,
-            Super_AdminRepository superAdminRepository,
             MemberRepository memberRepository,
             Repo_AssignmentRepository repoAssignmentRepository,
             Auth0UserService auth0UserService,
+            CompanyAccessService companyAccessService,
             EmailService emailService,
             InvitationMapper invitationMapper
     ) {
         this.invitationRepository = invitationRepository;
         this.repositoryRepository = repositoryRepository;
-        this.superAdminRepository = superAdminRepository;
         this.memberRepository = memberRepository;
         this.repoAssignmentRepository = repoAssignmentRepository;
         this.auth0UserService = auth0UserService;
+        this.companyAccessService = companyAccessService;
         this.emailService = emailService;
         this.invitationMapper = invitationMapper;
     }
@@ -85,10 +86,7 @@ public class InvitationServiceImpl implements InvitationService {
         }
 
         // 2. Validate current user is Super Admin for this company
-        User currentUser = auth0UserService.getAuthenticatedUser();
-        Super_Admin superAdmin = superAdminRepository
-                .findByUserUserIdAndCompanyCompanyId(currentUser.getUserId(), company.getCompanyId())
-                .orElseThrow(() -> new BadRequestException("Access denied: You are not a Super Admin for company: " + company.getCompanyName()));
+        Super_Admin superAdmin = companyAccessService.requireSuperAdminAssignment(company.getCompanyId());
 
         LocalDateTime expiresAt = LocalDateTime.now().plusDays(expirationDays);
         List<InvitationResponseDTO> createdInvitations = new ArrayList<>();
@@ -139,12 +137,11 @@ public class InvitationServiceImpl implements InvitationService {
         Repository repository = repositoryRepository.findById(repositoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Repository not found with ID: " + repositoryId));
 
-        User currentUser = auth0UserService.getAuthenticatedUser();
         Company company = repository.getCompany();
-
-        if (company != null && !superAdminRepository.existsByUserUserIdAndCompanyCompanyId(currentUser.getUserId(), company.getCompanyId())) {
-            throw new BadRequestException("Access denied: You are not an admin for this repository");
+        if (company == null) {
+            throw new BadRequestException("Repository is not linked to any company");
         }
+        companyAccessService.requireSuperAdminAccess(company.getCompanyId());
 
         return invitationRepository.findByRepositoryRepositoryId(repositoryId)
                 .stream()
@@ -158,10 +155,7 @@ public class InvitationServiceImpl implements InvitationService {
     @Override
     @Transactional(readOnly = true)
     public List<InvitationResponseDTO> getInvitationsByCompany(Long companyId) {
-        User currentUser = auth0UserService.getAuthenticatedUser();
-        if (!superAdminRepository.existsByUserUserIdAndCompanyCompanyId(currentUser.getUserId(), companyId)) {
-            throw new BadRequestException("Access denied: You are not an admin for this company");
-        }
+        companyAccessService.requireSuperAdminAccess(companyId);
 
         return invitationRepository.findByRepositoryCompanyCompanyId(companyId)
                 .stream()
@@ -211,7 +205,9 @@ public class InvitationServiceImpl implements InvitationService {
                 || (invitation.getEmail() != null && invitation.getEmail().equalsIgnoreCase(currentUser.getEmail()));
 
         if (!matchesUser) {
-            throw new BadRequestException("This invitation was not addressed to your GitHub username or email");
+            throw new AccessDeniedException(
+                    "This invitation was not addressed to your GitHub username or email"
+            );
         }
 
         // 1. Mark invitation ACCEPTED
@@ -262,7 +258,9 @@ public class InvitationServiceImpl implements InvitationService {
                 || (invitation.getEmail() != null && invitation.getEmail().equalsIgnoreCase(currentUser.getEmail()));
 
         if (!matchesUser) {
-            throw new BadRequestException("This invitation was not addressed to your GitHub username or email");
+            throw new AccessDeniedException(
+                    "This invitation was not addressed to your GitHub username or email"
+            );
         }
 
         invitation.setStatus(InvitationStatus.REJECTED);

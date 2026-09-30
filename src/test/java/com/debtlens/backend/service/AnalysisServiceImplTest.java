@@ -345,6 +345,33 @@ class AnalysisServiceImplTest {
     }
 
     @Test
+    void FR_04_interruptedAnalysis_shouldKeepFailedStateAndAllowNextAnalysisToComplete() {
+        Repository repository = repository(42L, "debt-lens", "url", "main");
+        Analysis_Job interruptedJob = job(100L, AnalysisJobStatus.RUNNING, repository);
+        Analysis_Job recoveryJob = job(101L, AnalysisJobStatus.QUEUED, repository);
+        when(analysisJobRepository.findById(100L)).thenReturn(Optional.of(interruptedJob));
+        when(analysisJobRepository.findById(101L)).thenReturn(Optional.of(recoveryJob));
+
+        service.processAnalysisResult(AnalysisResultDTO.builder()
+                .jobId("100")
+                .status("FAILED")
+                .error("analysis worker interrupted")
+                .build());
+        LocalDateTime interruptedAt = interruptedJob.getCompletedAt();
+
+        service.processAnalysisResult(successfulResult("101", List.of()));
+
+        assertEquals(AnalysisJobStatus.FAILED, interruptedJob.getStatus());
+        assertEquals(interruptedAt, interruptedJob.getCompletedAt());
+        assertEquals(AnalysisJobStatus.COMPLETED, recoveryJob.getStatus());
+        assertNotNull(recoveryJob.getCompletedAt());
+        verify(analysisJobRepository).save(interruptedJob);
+        verify(analysisJobRepository, times(2)).save(recoveryJob);
+        verify(statusHistoryRepository, times(2)).save(any(Analysis_Status_History.class));
+        verifyNoInteractions(classMetricsRepository, classCommentRepository, mlJobProducer);
+    }
+
+    @Test
     void processAnalysisResult_shouldTreatSuccessWithoutRepositoryMetricsAsFailure() {
         Analysis_Job job = job(100L, AnalysisJobStatus.RUNNING, repository(42L, "debt-lens", "url", "main"));
         when(analysisJobRepository.findById(100L)).thenReturn(Optional.of(job));

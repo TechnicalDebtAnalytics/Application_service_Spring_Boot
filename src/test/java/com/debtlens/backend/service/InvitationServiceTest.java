@@ -14,12 +14,13 @@ import com.debtlens.backend.exception.ResourceNotFoundException;
 import com.debtlens.backend.mapper.InvitationMapper;
 import com.debtlens.backend.repository.InvitationRepository;
 import com.debtlens.backend.repository.RepositoryRepository;
-import com.debtlens.backend.repository.Super_AdminRepository;
 import com.debtlens.backend.security.Auth0UserService;
+import com.debtlens.backend.security.CompanyAccessService;
 import com.debtlens.backend.service.impl.InvitationServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.security.access.AccessDeniedException;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -42,9 +43,6 @@ class InvitationServiceTest {
     private RepositoryRepository repositoryRepository;
 
     @Mock
-    private Super_AdminRepository superAdminRepository;
-
-    @Mock
     private com.debtlens.backend.repository.MemberRepository memberRepository;
 
     @Mock
@@ -52,6 +50,9 @@ class InvitationServiceTest {
 
     @Mock
     private Auth0UserService auth0UserService;
+
+    @Mock
+    private CompanyAccessService companyAccessService;
 
     @Mock
     private EmailService emailService;
@@ -70,10 +71,10 @@ class InvitationServiceTest {
         invitationService = new InvitationServiceImpl(
                 invitationRepository,
                 repositoryRepository,
-                superAdminRepository,
                 memberRepository,
                 repoAssignmentRepository,
                 auth0UserService,
+                companyAccessService,
                 emailService,
                 invitationMapper
         );
@@ -101,8 +102,7 @@ class InvitationServiceTest {
     @Test
     void sendInvitations_success() {
         when(repositoryRepository.findById(100L)).thenReturn(Optional.of(testRepo));
-        when(auth0UserService.getAuthenticatedUser()).thenReturn(adminUser);
-        when(superAdminRepository.findByUserUserIdAndCompanyCompanyId(1L, 10L)).thenReturn(Optional.of(testSuperAdmin));
+        when(companyAccessService.requireSuperAdminAssignment(10L)).thenReturn(testSuperAdmin);
         when(invitationRepository.existsByEmailAndRepositoryRepositoryIdAndStatus("alice@example.com", 100L, InvitationStatus.PENDING))
                 .thenReturn(false);
 
@@ -139,23 +139,22 @@ class InvitationServiceTest {
     @Test
     void sendInvitations_unauthorizedNotSuperAdmin() {
         when(repositoryRepository.findById(100L)).thenReturn(Optional.of(testRepo));
-        when(auth0UserService.getAuthenticatedUser()).thenReturn(adminUser);
-        when(superAdminRepository.findByUserUserIdAndCompanyCompanyId(1L, 10L)).thenReturn(Optional.empty());
+        when(companyAccessService.requireSuperAdminAssignment(10L))
+                .thenThrow(new AccessDeniedException("Access denied"));
 
         InvitationRequestDTO request = new InvitationRequestDTO(
                 100L,
                 List.of(new InvitationRequestDTO.ContributorInviteDTO("alice", "alice@example.com"))
         );
 
-        assertThrows(BadRequestException.class, () -> invitationService.sendInvitations(request));
+        assertThrows(AccessDeniedException.class, () -> invitationService.sendInvitations(request));
         verify(emailService, never()).sendInvitationEmail(any(), any(), any(), any(), any(), any());
     }
 
     @Test
     void sendInvitations_duplicatePendingInvite_throwsBadRequest() {
         when(repositoryRepository.findById(100L)).thenReturn(Optional.of(testRepo));
-        when(auth0UserService.getAuthenticatedUser()).thenReturn(adminUser);
-        when(superAdminRepository.findByUserUserIdAndCompanyCompanyId(1L, 10L)).thenReturn(Optional.of(testSuperAdmin));
+        when(companyAccessService.requireSuperAdminAssignment(10L)).thenReturn(testSuperAdmin);
         when(invitationRepository.existsByEmailAndRepositoryRepositoryIdAndStatus("alice@example.com", 100L, InvitationStatus.PENDING))
                 .thenReturn(true);
 
@@ -171,8 +170,7 @@ class InvitationServiceTest {
     @Test
     void getInvitationsByRepository_success() {
         when(repositoryRepository.findById(100L)).thenReturn(Optional.of(testRepo));
-        when(auth0UserService.getAuthenticatedUser()).thenReturn(adminUser);
-        when(superAdminRepository.existsByUserUserIdAndCompanyCompanyId(1L, 10L)).thenReturn(true);
+        when(companyAccessService.requireSuperAdminAccess(10L)).thenReturn(testCompany);
 
         Invitation inv = new Invitation();
         inv.setInvitationId(1L);
@@ -281,26 +279,27 @@ class InvitationServiceTest {
         assertThrows(ResourceNotFoundException.class, () -> invitationService.getInvitationsByRepository(404L));
 
         when(repositoryRepository.findById(100L)).thenReturn(Optional.of(testRepo));
-        when(auth0UserService.getAuthenticatedUser()).thenReturn(adminUser);
-        when(superAdminRepository.existsByUserUserIdAndCompanyCompanyId(1L, 10L)).thenReturn(false);
-        assertThrows(BadRequestException.class, () -> invitationService.getInvitationsByRepository(100L));
+        when(companyAccessService.requireSuperAdminAccess(10L))
+                .thenThrow(new AccessDeniedException("Access denied"));
+        assertThrows(AccessDeniedException.class, () -> invitationService.getInvitationsByRepository(100L));
         verify(invitationRepository, never()).findByRepositoryRepositoryId(100L);
     }
 
     @Test
     void companyAndCurrentUserInvitationQueries_validateAuthorizationAndIdentity() {
         Invitation invitation = invitationFor(new User(), InvitationStatus.PENDING);
-        when(auth0UserService.getAuthenticatedUser()).thenReturn(adminUser);
-        when(superAdminRepository.existsByUserUserIdAndCompanyCompanyId(1L, 10L)).thenReturn(true);
+        when(companyAccessService.requireSuperAdminAccess(10L)).thenReturn(testCompany);
         when(invitationRepository.findByRepositoryCompanyCompanyId(10L)).thenReturn(List.of(invitation));
 
         assertEquals(1, invitationService.getInvitationsByCompany(10L).size());
 
-        when(superAdminRepository.existsByUserUserIdAndCompanyCompanyId(1L, 11L)).thenReturn(false);
-        assertThrows(BadRequestException.class, () -> invitationService.getInvitationsByCompany(11L));
+        when(companyAccessService.requireSuperAdminAccess(11L))
+                .thenThrow(new AccessDeniedException("Access denied"));
+        assertThrows(AccessDeniedException.class, () -> invitationService.getInvitationsByCompany(11L));
 
         adminUser.setGithubUsername("  admin-gh  ");
         adminUser.setEmail("  admin@example.com  ");
+        when(auth0UserService.getAuthenticatedUser()).thenReturn(adminUser);
         when(invitationRepository.findPendingForUser("admin-gh", "admin@example.com"))
                 .thenReturn(List.of(invitation));
         assertEquals(1, invitationService.getMyPendingInvitations().size());
@@ -329,7 +328,7 @@ class InvitationServiceTest {
         wrong.setEmail("other@example.com");
         wrong.setGithubUsername("other");
         when(invitationRepository.findById(3L)).thenReturn(Optional.of(wrong));
-        assertThrows(BadRequestException.class, () -> invitationService.acceptInvitation(3L));
+        assertThrows(AccessDeniedException.class, () -> invitationService.acceptInvitation(3L));
     }
 
     @Test
@@ -368,7 +367,7 @@ class InvitationServiceTest {
         wrong.setEmail("other@example.com");
         wrong.setGithubUsername("other");
         when(invitationRepository.findById(2L)).thenReturn(Optional.of(wrong));
-        assertThrows(BadRequestException.class, () -> invitationService.rejectInvitation(2L));
+        assertThrows(AccessDeniedException.class, () -> invitationService.rejectInvitation(2L));
     }
 
     private User invitee() {

@@ -17,9 +17,6 @@ public class AnalysisController {
         this.analysisService = analysisService;
     }
 
-    /**
-     * Start a new analysis job for a repository.
-     */
     @PostMapping("/repositories/{repositoryId}/analysis")
     public ResponseEntity<AnalysisResponseDTO> startRepositoryAnalysis(
             @PathVariable Long repositoryId,
@@ -31,9 +28,7 @@ public class AnalysisController {
 
 
 
-    /**
-     * Get analysis job status and metadata by analysis ID.
-     */
+   
     @GetMapping("/analysis/{analysisId}")
     public ResponseEntity<AnalysisResponseDTO> getAnalysisJob(
             @PathVariable Long analysisId
@@ -42,9 +37,7 @@ public class AnalysisController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Get all analysis jobs for a given repository.
-     */
+  
     @GetMapping("/repositories/{repositoryId}/analysis")
     public ResponseEntity<List<AnalysisResponseDTO>> getRepositoryAnalysisHistory(
             @PathVariable Long repositoryId
