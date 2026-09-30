@@ -45,4 +45,12 @@ public class AnalysisController {
         List<AnalysisResponseDTO> history = analysisService.getRepositoryAnalysisHistory(repositoryId);
         return ResponseEntity.ok(history);
     }
+
+    @GetMapping("/companies/{companyId}/analysis")
+    public ResponseEntity<List<AnalysisResponseDTO>> getCompanyAnalysisHistory(
+            @PathVariable Long companyId
+    ) {
+        List<AnalysisResponseDTO> history = analysisService.getCompanyAnalysisHistory(companyId);
+        return ResponseEntity.ok(history);
+    }
 }

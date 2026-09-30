@@ -237,6 +237,30 @@ class AnalysisServiceImplTest {
     }
 
     @Test
+    void getCompanyAnalysisHistory_shouldReturnMappedJobsForCompany() {
+        Repository repo = repository(10L, "test-repo", "https://github.com/org/repo", "main");
+        Analysis_Job job1 = job(101L, AnalysisJobStatus.COMPLETED, repo);
+        job1.setStartedBy(user(1L, "Jane", "Doe", "janedoe"));
+
+        when(analysisJobRepository.findByRepositoryCompanyCompanyIdOrderByStartedAtDesc(9L))
+                .thenReturn(List.of(job1));
+        when(classMetricsRepository.countByAnalysisJobAnalysisId(101L)).thenReturn(12);
+
+        List<AnalysisResponseDTO> history = service.getCompanyAnalysisHistory(9L);
+
+        assertEquals(1, history.size());
+        assertEquals(101L, history.get(0).analysisId());
+        assertEquals("test-repo", history.get(0).repositoryName());
+        assertEquals("DebtLens", history.get(0).companyName());
+        assertEquals(12, history.get(0).totalClassesAnalyzed());
+    }
+
+    @Test
+    void getCompanyAnalysisHistory_shouldThrowWhenCompanyIdIsNull() {
+        assertThrows(BadRequestException.class, () -> service.getCompanyAnalysisHistory(null));
+    }
+
+    @Test
     void processAnalysisResult_shouldPersistMetricsAndCommentsPublishMlJobAndRemainRunning() {
         Repository repository = repository(42L, "debt-lens", "url", "main");
         Analysis_Job job = job(100L, AnalysisJobStatus.QUEUED, repository);
