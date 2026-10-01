@@ -55,6 +55,7 @@ public class GithubService {
         return githubClient.getOrganizationRepositories(orgName.trim(), installationId);
     }
 
+    @Cacheable(value = "github-repos", key = "#orgName.trim().toLowerCase() + '-default'")
     public List<GithubRepoResponse> getRepositories(String orgName) {
         return getRepositories(orgName, null);
     }
@@ -68,6 +69,7 @@ public class GithubService {
         return githubClient.getOrganizationMembers(orgName.trim(), installationId);
     }
 
+    @Cacheable(value = "github-members", key = "#orgName.trim().toLowerCase() + '-default'")
     public List<GithubMemberResponse> getMembers(String orgName) {
         return getMembers(orgName, null);
     }
@@ -82,6 +84,7 @@ public class GithubService {
         return githubClient.getRepoContributors(owner.trim(), repo.trim(), installationId);
     }
 
+    @Cacheable(value = "github-contributors", key = "#owner.trim().toLowerCase() + '/' + #repo.trim().toLowerCase() + '-default'")
     public List<com.debtlens.backend.integration.github.dto.GithubContributorResponse> getContributors(String owner, String repo) {
         return getContributors(owner, repo, null);
     }
