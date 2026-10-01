@@ -28,6 +28,7 @@ public class MLResultConsumer {
     private final SATD_DetectionRepository satdDetectionRepository;
     private final Debt_ScoreRepository debtScoreRepository;
     private final com.debtlens.backend.engine.DebtScoreEngine debtScoreEngine;
+    private final com.debtlens.backend.websocket.AnalysisProgressPublisher analysisProgressPublisher;
 
     public MLResultConsumer(
             Analysis_JobRepository analysisJobRepository,
@@ -39,6 +40,31 @@ public class MLResultConsumer {
             Debt_ScoreRepository debtScoreRepository,
             com.debtlens.backend.engine.DebtScoreEngine debtScoreEngine
     ) {
+        this(
+                analysisJobRepository,
+                statusHistoryRepository,
+                classMetricsRepository,
+                classCommentRepository,
+                bugPredictionRepository,
+                satdDetectionRepository,
+                debtScoreRepository,
+                debtScoreEngine,
+                null
+        );
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public MLResultConsumer(
+            Analysis_JobRepository analysisJobRepository,
+            Analysis_Status_HistoryRepository statusHistoryRepository,
+            Class_MetricsRepository classMetricsRepository,
+            Class_CommentRepository classCommentRepository,
+            Bug_PredictionRepository bugPredictionRepository,
+            SATD_DetectionRepository satdDetectionRepository,
+            Debt_ScoreRepository debtScoreRepository,
+            com.debtlens.backend.engine.DebtScoreEngine debtScoreEngine,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.debtlens.backend.websocket.AnalysisProgressPublisher analysisProgressPublisher
+    ) {
         this.analysisJobRepository = analysisJobRepository;
         this.statusHistoryRepository = statusHistoryRepository;
         this.classMetricsRepository = classMetricsRepository;
@@ -47,6 +73,7 @@ public class MLResultConsumer {
         this.satdDetectionRepository = satdDetectionRepository;
         this.debtScoreRepository = debtScoreRepository;
         this.debtScoreEngine = debtScoreEngine;
+        this.analysisProgressPublisher = analysisProgressPublisher;
     }
 
     @RabbitListener(queues = RabbitMQConfig.ML_JOB_RESULTS_QUEUE)
@@ -171,6 +198,24 @@ public class MLResultConsumer {
                 + savedSatd + " SATD classifications, and " + savedDebtScores + " debt scores.");
         history.setTimestamp(LocalDateTime.now());
         statusHistoryRepository.save(history);
+
+        // 6. Broadcast live completion via WebSocket
+        if (analysisProgressPublisher != null) {
+            String repoName = job.getRepository() != null ? job.getRepository().getRepositoryName() : null;
+            Long repoId = job.getRepository() != null ? job.getRepository().getRepositoryId() : null;
+            String branch = job.getRepository() != null ? job.getRepository().getDefaultBranch() : "main";
+            analysisProgressPublisher.broadcastProgress(com.debtlens.backend.dto.messaging.AnalysisProgressMessage.builder()
+                    .jobId(analysisId)
+                    .repositoryId(repoId)
+                    .repositoryName(repoName)
+                    .branch(branch)
+                    .status("COMPLETED")
+                    .stage("COMPLETED")
+                    .totalClasses(savedDebtScores)
+                    .message("Technical Debt Analysis #" + analysisId + " completed successfully! Generated " + savedDebtScores + " class recommendations.")
+                    .timestamp(LocalDateTime.now())
+                    .build());
+        }
 
         log.info("Finished processing ML results for job #{}: marked COMPLETED with {} bugs, {} SATD detections, {} debt scores",
                 analysisId, savedBugs, savedSatd, savedDebtScores);

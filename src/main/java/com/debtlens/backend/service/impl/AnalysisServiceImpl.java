@@ -434,10 +434,38 @@ public class AnalysisServiceImpl implements AnalysisService {
                 history.setStatus(AnalysisJobStatus.COMPLETED);
                 history.setMessage("Analysis completed successfully. Processed 0 classes.");
                 log.info("Analysis job #{} completed successfully with no classes to send for ML processing", analysisId);
+
+                if (analysisProgressPublisher != null) {
+                    analysisProgressPublisher.broadcastProgress(AnalysisProgressMessage.builder()
+                            .jobId(analysisId)
+                            .repositoryId(job.getRepository() != null ? job.getRepository().getRepositoryId() : null)
+                            .repositoryName(job.getRepository() != null ? job.getRepository().getRepositoryName() : null)
+                            .branch(job.getRepository() != null ? job.getRepository().getDefaultBranch() : "main")
+                            .status("COMPLETED")
+                            .stage("COMPLETED")
+                            .totalClasses(0)
+                            .message("Analysis completed with 0 classes found.")
+                            .timestamp(now)
+                            .build());
+                }
             } else {
                 history.setStatus(AnalysisJobStatus.RUNNING);
                 history.setMessage("Static analysis completed and ML processing queued. Processed " + totalSaved + " classes.");
                 log.info("Analysis job #{} remains RUNNING while ML processes {} classes", analysisId, totalSaved);
+
+                if (analysisProgressPublisher != null) {
+                    analysisProgressPublisher.broadcastProgress(AnalysisProgressMessage.builder()
+                            .jobId(analysisId)
+                            .repositoryId(job.getRepository() != null ? job.getRepository().getRepositoryId() : null)
+                            .repositoryName(job.getRepository() != null ? job.getRepository().getRepositoryName() : null)
+                            .branch(job.getRepository() != null ? job.getRepository().getDefaultBranch() : "main")
+                            .status("RUNNING")
+                            .stage("ML_PREDICTION")
+                            .totalClasses(totalSaved)
+                            .message("Extracted AST metrics for " + totalSaved + " classes. Machine Learning models calculating bug predictions & SATD scores...")
+                            .timestamp(now)
+                            .build());
+                }
             }
 
             statusHistoryRepository.save(history);
@@ -453,6 +481,19 @@ public class AnalysisServiceImpl implements AnalysisService {
             history.setMessage("Analysis failed: " + errorMessage);
             history.setTimestamp(now);
             statusHistoryRepository.save(history);
+
+            if (analysisProgressPublisher != null) {
+                analysisProgressPublisher.broadcastProgress(AnalysisProgressMessage.builder()
+                        .jobId(analysisId)
+                        .repositoryId(job.getRepository() != null ? job.getRepository().getRepositoryId() : null)
+                        .repositoryName(job.getRepository() != null ? job.getRepository().getRepositoryName() : null)
+                        .branch(job.getRepository() != null ? job.getRepository().getDefaultBranch() : "main")
+                        .status("FAILED")
+                        .stage("FAILED")
+                        .message("Analysis failed: " + errorMessage)
+                        .timestamp(now)
+                        .build());
+            }
 
             log.warn("Analysis job #{} failed: {}", analysisId, errorMessage);
         }
