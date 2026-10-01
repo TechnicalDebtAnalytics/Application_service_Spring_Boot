@@ -35,9 +35,7 @@ public class GithubController {
             @PathVariable String orgName,
             @RequestParam(required = false) Long installationId
     ) {
-        GithubOrgResponse org = installationId != null
-                ? githubService.getOrganization(orgName, installationId)
-                : githubService.getOrganization(orgName);
+        GithubOrgResponse org = githubService.getOrganization(orgName, installationId);
         return ResponseEntity.ok(org);
     }
 
@@ -46,9 +44,7 @@ public class GithubController {
             @PathVariable String orgName,
             @RequestParam(required = false) Long installationId
     ) {
-        List<GithubRepoResponse> repos = installationId != null
-                ? githubService.getRepositories(orgName, installationId)
-                : githubService.getRepositories(orgName);
+        List<GithubRepoResponse> repos = githubService.getRepositories(orgName, installationId);
         return ResponseEntity.ok(repos);
     }
 
@@ -57,9 +53,7 @@ public class GithubController {
             @PathVariable String orgName,
             @RequestParam(required = false) Long installationId
     ) {
-        List<GithubMemberResponse> members = installationId != null
-                ? githubService.getMembers(orgName, installationId)
-                : githubService.getMembers(orgName);
+        List<GithubMemberResponse> members = githubService.getMembers(orgName, installationId);
         return ResponseEntity.ok(members);
     }
 
@@ -69,9 +63,7 @@ public class GithubController {
             @PathVariable String repo,
             @RequestParam(required = false) Long installationId
     ) {
-        List<GithubContributorResponse> contributors = installationId != null
-                ? githubService.getContributors(owner, repo, installationId)
-                : githubService.getContributors(owner, repo);
+        List<GithubContributorResponse> contributors = githubService.getContributors(owner, repo, installationId);
         return ResponseEntity.ok(contributors);
     }
 
@@ -86,9 +78,7 @@ public class GithubController {
             @RequestParam(required = false) Long installationId
     ) {
         String auth0UserId = auth0UserService.getAuthenticatedAuth0UserId();
-        GithubMemberValidationResponse result = installationId != null
-                ? githubService.validateUserMembershipByAuth0UserId(orgName, auth0UserId, installationId)
-                : githubService.validateUserMembershipByAuth0UserId(orgName, auth0UserId);
+        GithubMemberValidationResponse result = githubService.validateUserMembershipByAuth0UserId(orgName, auth0UserId, installationId);
         return ResponseEntity.ok(result);
     }
 }
