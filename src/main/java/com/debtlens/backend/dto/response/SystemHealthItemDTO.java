@@ -5,6 +5,8 @@ public record SystemHealthItemDTO(
         String key,
         String description,
         String status,
-        String details
+        String details,
+        long responseTimeMs,
+        java.time.LocalDateTime checkedAt
 ) {
 }

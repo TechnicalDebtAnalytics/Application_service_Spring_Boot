@@ -1,6 +1,7 @@
 package com.debtlens.backend.dto.response;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record AdminUserResponseDTO(
         Long userId,
@@ -9,8 +10,7 @@ public record AdminUserResponseDTO(
         String email,
         String githubUsername,
         Boolean emailVerified,
-        String companyRole,
-        String companyName,
+        List<AdminUserAffiliationDTO> affiliations,
         LocalDateTime createdAt
 ) {
 }

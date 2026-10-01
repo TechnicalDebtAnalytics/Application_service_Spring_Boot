@@ -9,7 +9,7 @@ public record AdminCompanyResponseDTO(
         String superAdminName,
         String superAdminEmail,
         int totalRepositories,
-        int totalMembers,
+        int totalUsers,
         LocalDateTime createdAt
 ) {
 }

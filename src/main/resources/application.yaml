@@ -40,7 +40,7 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: ${JPA_SHOW_SQL:true}
     properties:
       hibernate:
         format_sql: true
@@ -83,3 +83,9 @@ auth0:
 github:
   token: ${GITHUB_TOKEN:}
   api-url: ${GITHUB_API_URL:https://api.github.com}
+
+services:
+  analysis:
+    health-url: ${ANALYSIS_SERVICE_HEALTH_URL:http://localhost:8082/actuator/health}
+  ml:
+    health-url: ${ML_SERVICE_HEALTH_URL:http://localhost:8000/health}

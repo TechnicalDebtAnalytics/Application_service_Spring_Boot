@@ -200,9 +200,7 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(List.of(
                 "http://localhost:*",
                 "http://127.0.0.1:*",
-                "https://debtlens.mrt.lk",
-                "https://*.mrt.lk",
-                "*"
+                "https://debtlens.mrt.lk"
         ));
 
         configuration.setAllowedMethods(Arrays.asList(
