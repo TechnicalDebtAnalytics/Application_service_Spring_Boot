@@ -3,11 +3,22 @@ package com.debtlens.backend.repository;
 import com.debtlens.backend.entity.Analysis_Job;
 import com.debtlens.backend.entity.AnalysisJobStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.util.List;
 
 public interface Analysis_JobRepository
-        extends JpaRepository<Analysis_Job, Long> {
+        extends JpaRepository<Analysis_Job, Long>, JpaSpecificationExecutor<Analysis_Job> {
+
+    @Override
+    @EntityGraph(attributePaths = {"repository", "repository.company", "startedBy"})
+    Page<Analysis_Job> findAll(Specification<Analysis_Job> specification, Pageable pageable);
+
+    long countByStatus(AnalysisJobStatus status);
 
     // Returns a repository's analysis history, newest request first.
     List<Analysis_Job>
