@@ -96,7 +96,9 @@ public class CompanyServiceImpl implements CompanyService {
             throw new BadRequestException("A valid GitHub organization name or URL is required");
         }
 
-        GithubMemberValidationResponse validation = githubService.validateUserMembership(orgName, currentUser.getGithubUsername());
+        GithubMemberValidationResponse validation = request.githubInstallationId() != null
+                ? githubService.validateUserMembership(orgName, currentUser.getGithubUsername(), request.githubInstallationId())
+                : githubService.validateUserMembership(orgName, currentUser.getGithubUsername());
         if (!validation.isMember()) {
             throw new BadRequestException(validation.message());
         }
@@ -111,6 +113,7 @@ public class CompanyServiceImpl implements CompanyService {
         Company company = new Company();
         company.setCompanyName(request.companyName().trim());
         company.setGithubOrganizationUrl(orgUrl);
+        company.setGithubInstallationId(request.githubInstallationId());
         company.setCreatedBy(currentUser);
 
         // 4. Validate and assign selected repositories under the company
@@ -251,7 +254,9 @@ public class CompanyServiceImpl implements CompanyService {
                 : orgUrl;
 
         // 3. Fetch live repositories from GitHub API
-        List<GithubRepoResponse> githubRepos = githubService.getRepositories(orgName);
+        List<GithubRepoResponse> githubRepos = company.getGithubInstallationId() != null
+                ? githubService.getRepositories(orgName, company.getGithubInstallationId())
+                : githubService.getRepositories(orgName);
 
         // 4. Collect existing GitHub repository IDs already saved in database
         Set<String> existingIds = company.getRepositories().stream()
@@ -347,6 +352,15 @@ public class CompanyServiceImpl implements CompanyService {
                     return companyMapper.toDTO(company, assignedRepoDTOs);
                 })
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public CompanyResponseDTO linkGithubInstallation(Long companyId, Long installationId) {
+        Company company = companyAccessService.requireSuperAdminAccess(companyId);
+        company.setGithubInstallationId(installationId);
+        Company updated = companyRepository.save(company);
+        return companyMapper.toDTO(updated);
     }
 
     private String extractOrgName(String input) {

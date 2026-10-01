@@ -23,4 +23,6 @@ public interface CompanyService {
     List<RepositoryResponseDTO> getCompanyRepositories(Long companyId);
 
     List<CompanyResponseDTO> getMyMemberCompanies();
+
+    CompanyResponseDTO linkGithubInstallation(Long companyId, Long installationId);
 }
