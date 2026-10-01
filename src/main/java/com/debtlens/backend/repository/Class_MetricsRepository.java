@@ -2,6 +2,7 @@ package com.debtlens.backend.repository;
 
 import com.debtlens.backend.entity.Class_Metrics;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
@@ -26,4 +27,17 @@ public interface Class_MetricsRepository
 
     // Counts total classes analyzed for one analysis job.
     int countByAnalysisJobAnalysisId(Long analysisId);
+
+    interface AnalysisClassCount {
+        Long getAnalysisId();
+        Long getClassCount();
+    }
+
+    @Query("""
+            select cm.analysisJob.analysisId as analysisId, count(cm) as classCount
+            from Class_Metrics cm
+            where cm.analysisJob.analysisId in :analysisIds
+            group by cm.analysisJob.analysisId
+            """)
+    List<AnalysisClassCount> countByAnalysisIds(List<Long> analysisIds);
 }

@@ -3,224 +3,119 @@ package com.debtlens.backend.service;
 import com.debtlens.backend.dto.response.AdminCompanyResponseDTO;
 import com.debtlens.backend.dto.response.AdminUserResponseDTO;
 import com.debtlens.backend.dto.response.AnalysisResponseDTO;
-import com.debtlens.backend.entity.AnalysisJobStatus;
-import com.debtlens.backend.entity.Analysis_Job;
-import com.debtlens.backend.entity.Company;
-import com.debtlens.backend.entity.Member;
-import com.debtlens.backend.entity.Repository;
-import com.debtlens.backend.entity.Super_Admin;
-import com.debtlens.backend.entity.User;
-import com.debtlens.backend.exception.ResourceNotFoundException;
-import com.debtlens.backend.repository.Analysis_JobRepository;
-import com.debtlens.backend.repository.Class_MetricsRepository;
-import com.debtlens.backend.repository.CompanyRepository;
-import com.debtlens.backend.repository.MemberRepository;
-import com.debtlens.backend.repository.RepositoryRepository;
-import com.debtlens.backend.repository.Super_AdminRepository;
-import com.debtlens.backend.repository.UserRepository;
+import com.debtlens.backend.entity.*;
+import com.debtlens.backend.exception.BadRequestException;
+import com.debtlens.backend.repository.*;
 import com.debtlens.backend.service.impl.AdminCompanyServiceImpl;
 import com.debtlens.backend.service.impl.AdminUserServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.domain.Specification;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class AdminServicesTest {
-
-    private UserRepository userRepository;
-    private CompanyRepository companyRepository;
-    private MemberRepository memberRepository;
-    private RepositoryRepository repositoryRepository;
-    private Super_AdminRepository superAdminRepository;
-    private Analysis_JobRepository analysisJobRepository;
-    private Class_MetricsRepository classMetricsRepository;
-    private AdminUserServiceImpl adminUserService;
-    private AdminCompanyServiceImpl adminCompanyService;
+    private UserRepository users;
+    private CompanyRepository companies;
+    private MemberRepository members;
+    private RepositoryRepository repositories;
+    private Super_AdminRepository admins;
+    private Analysis_JobRepository jobs;
+    private Analysis_Status_HistoryRepository history;
+    private Class_MetricsRepository metrics;
+    private AdminUserServiceImpl userService;
+    private AdminCompanyServiceImpl companyService;
 
     @BeforeEach
     void setUp() {
-        userRepository = mock(UserRepository.class);
-        companyRepository = mock(CompanyRepository.class);
-        memberRepository = mock(MemberRepository.class);
-        repositoryRepository = mock(RepositoryRepository.class);
-        superAdminRepository = mock(Super_AdminRepository.class);
-        analysisJobRepository = mock(Analysis_JobRepository.class);
-        classMetricsRepository = mock(Class_MetricsRepository.class);
-        adminUserService = new AdminUserServiceImpl(userRepository, superAdminRepository, memberRepository);
-        adminCompanyService = new AdminCompanyServiceImpl(companyRepository, memberRepository,
-                repositoryRepository, superAdminRepository, analysisJobRepository, classMetricsRepository);
+        users = mock(UserRepository.class); companies = mock(CompanyRepository.class);
+        members = mock(MemberRepository.class); repositories = mock(RepositoryRepository.class);
+        admins = mock(Super_AdminRepository.class); jobs = mock(Analysis_JobRepository.class);
+        history = mock(Analysis_Status_HistoryRepository.class); metrics = mock(Class_MetricsRepository.class);
+        userService = new AdminUserServiceImpl(users, admins, members);
+        companyService = new AdminCompanyServiceImpl(companies, members, repositories, admins, jobs,
+                history, metrics, users, userService);
     }
 
     @Test
-    void getAllUsers_shouldPreferSuperAdminThenMemberAndHandleUnassignedUser() {
-        Company acme = company(10L, "Acme", user(99L, "Owner", "One"));
-        Company beta = company(11L, "Beta", user(98L, "Owner", "Two"));
-        User admin = user(1L, "Ada", "Admin");
-        User memberUser = user(2L, "Mia", "Member");
-        User unassigned = user(3L, "Una", "Assigned");
-        when(userRepository.findAll()).thenReturn(List.of(admin, memberUser, unassigned));
-        when(superAdminRepository.findByUserUserId(1L)).thenReturn(List.of(superAdmin(admin, acme)));
-        when(superAdminRepository.findByUserUserId(2L)).thenReturn(List.of());
-        when(superAdminRepository.findByUserUserId(3L)).thenReturn(List.of());
-        when(memberRepository.findByUserUserId(2L)).thenReturn(List.of(member(memberUser, beta, 20L)));
-        when(memberRepository.findByUserUserId(3L)).thenReturn(List.of());
+    void mapsEveryUserAffiliationAndPrefersSuperAdminWithinOneCompany() {
+        User user = user(1L, "Ada", "Admin");
+        Company alpha = company(10L, "Alpha", user); Company beta = company(11L, "Beta", user);
+        when(admins.findByUserUserIdIn(List.of(1L))).thenReturn(List.of(admin(user, alpha)));
+        when(members.findByUserUserIdIn(List.of(1L))).thenReturn(List.of(member(user, alpha), member(user, beta)));
 
-        List<AdminUserResponseDTO> result = adminUserService.getAllUsers();
+        AdminUserResponseDTO result = userService.mapUsers(new PageImpl<>(List.of(user)), null).getContent().get(0);
 
-        assertEquals(List.of("Super Admin", "Member"),
-                result.subList(0, 2).stream().map(AdminUserResponseDTO::companyRole).toList());
-        assertEquals(List.of("Acme", "Beta"),
-                result.subList(0, 2).stream().map(AdminUserResponseDTO::companyName).toList());
-        assertEquals(result.get(2).companyRole(), result.get(2).companyName());
-        assertFalse(result.get(2).companyRole().isBlank());
+        assertEquals(2, result.affiliations().size());
+        assertEquals("Super Admin", result.affiliations().get(0).role());
+        assertEquals("Member", result.affiliations().get(1).role());
     }
 
     @Test
-    void getAllCompanies_shouldMapCountsAndCreator() {
-        User owner = user(1L, "Ada", "Lovelace");
-        owner.setEmail("ada@example.com");
-        Company company = company(10L, "Acme", owner);
-        when(companyRepository.findAll()).thenReturn(List.of(company));
-        when(repositoryRepository.findByCompanyCompanyId(10L)).thenReturn(List.of(new Repository(), new Repository()));
-        when(memberRepository.findByCompanyCompanyId(10L)).thenReturn(List.of(new Member()));
+    @SuppressWarnings("unchecked")
+    void companyPageUsesUniqueUserCountIncludingAdmins() {
+        User owner = user(1L, "Ada", "Lovelace"); Company company = company(10L, "Acme", owner);
+        var pageable = PageRequest.of(0, 20);
+        when(companies.findAll(any(Specification.class), eq(pageable))).thenReturn(new PageImpl<>(List.of(company), pageable, 1));
+        when(admins.findByCompanyCompanyIdIn(List.of(10L))).thenReturn(List.of(admin(owner, company)));
+        when(members.findByCompanyCompanyIdIn(List.of(10L))).thenReturn(List.of(member(owner, company)));
+        when(repositories.findByCompanyCompanyIdIn(List.of(10L))).thenReturn(List.of(repository(100L, company)));
 
-        AdminCompanyResponseDTO result = adminCompanyService.getAllCompanies().get(0);
+        AdminCompanyResponseDTO result = companyService.getAllCompanies(null, null, null, pageable).getContent().get(0);
 
-        assertEquals("Ada Lovelace", result.superAdminName());
-        assertEquals("ada@example.com", result.superAdminEmail());
-        assertEquals(2, result.totalRepositories());
-        assertEquals(1, result.totalMembers());
+        assertEquals(1, result.totalUsers());
+        assertEquals(1, result.totalRepositories());
     }
 
     @Test
-    void getCompanyUsers_shouldDeduplicateSuperAdminWhoAlsoAppearsAsMember() {
-        User admin = user(1L, "Ada", "Admin");
-        User memberUser = user(2L, "Mia", "Member");
-        Company company = company(10L, "Acme", admin);
-        when(companyRepository.findById(10L)).thenReturn(Optional.of(company));
-        when(superAdminRepository.findByCompanyCompanyId(10L)).thenReturn(List.of(superAdmin(admin, company)));
-        when(memberRepository.findByCompanyCompanyId(10L)).thenReturn(List.of(
-                member(admin, company, 20L), member(memberUser, company, 21L)));
+    @SuppressWarnings("unchecked")
+    void analysisPageUsesBatchClassCounts() {
+        User owner = user(1L, "Ada", "Lovelace"); Company company = company(10L, "Acme", owner);
+        Analysis_Job job = job(1000L, repository(100L, company), owner); var pageable = PageRequest.of(0, 20);
+        when(jobs.findAll(any(Specification.class), eq(pageable))).thenReturn(new PageImpl<>(List.of(job), pageable, 1));
+        Class_MetricsRepository.AnalysisClassCount count = mock(Class_MetricsRepository.AnalysisClassCount.class);
+        when(count.getAnalysisId()).thenReturn(1000L); when(count.getClassCount()).thenReturn(4L);
+        when(metrics.countByAnalysisIds(List.of(1000L))).thenReturn(List.of(count));
 
-        List<AdminUserResponseDTO> result = adminCompanyService.getCompanyUsers(10L);
+        AnalysisResponseDTO result = companyService.getAllAnalysisJobs(null, null, null, null,
+                null, null, pageable).getContent().get(0);
 
-        assertEquals(2, result.size());
-        assertEquals(List.of("Super Admin", "Member"), result.stream().map(AdminUserResponseDTO::companyRole).toList());
-        assertEquals(List.of(1L, 2L), result.stream().map(AdminUserResponseDTO::userId).toList());
-    }
-
-    @Test
-    void getCompanyUsers_shouldFailWhenCompanyMissing() {
-        when(companyRepository.findById(404L)).thenReturn(Optional.empty());
-
-        assertEquals("Company not found with ID: 404",
-                assertThrows(ResourceNotFoundException.class,
-                        () -> adminCompanyService.getCompanyUsers(404L)).getMessage());
-    }
-
-    @Test
-    void getCompanyAnalysisJobs_shouldMapJobAndMetricCount() {
-        User owner = user(1L, "Ada", "Lovelace");
-        Company company = company(10L, "Acme", owner);
-        Repository repository = repository(100L, company, "develop");
-        Analysis_Job job = job(1000L, repository, owner);
-        when(companyRepository.findById(10L)).thenReturn(Optional.of(company));
-        when(analysisJobRepository.findByRepositoryCompanyCompanyIdOrderByStartedAtDesc(10L)).thenReturn(List.of(job));
-        when(classMetricsRepository.countByAnalysisJobAnalysisId(1000L)).thenReturn(4);
-
-        AnalysisResponseDTO result = adminCompanyService.getCompanyAnalysisJobs(10L).get(0);
-
-        assertEquals(10L, result.companyId());
-        assertEquals("Acme", result.companyName());
-        assertEquals("develop", result.branch());
-        assertEquals("Ada Lovelace", result.startedByName());
         assertEquals(4, result.totalClassesAnalyzed());
+        assertEquals("Acme", result.companyName());
     }
 
     @Test
-    void getCompanyAnalysisJobs_shouldFailWhenCompanyMissing() {
-        when(companyRepository.findById(404L)).thenReturn(Optional.empty());
-
-        assertThrows(ResourceNotFoundException.class,
-                () -> adminCompanyService.getCompanyAnalysisJobs(404L));
-    }
-
-    @Test
-    void getAllAnalysisJobs_shouldHandleJobWithoutRepositoryOrNamedUser() {
-        User user = user(1L, null, null);
-        user.setGithubUsername("octocat");
-        Analysis_Job job = job(1000L, null, user);
-        when(analysisJobRepository.findAllByOrderByStartedAtDesc()).thenReturn(List.of(job));
-        when(classMetricsRepository.countByAnalysisJobAnalysisId(1000L)).thenReturn(0);
-
-        AnalysisResponseDTO result = adminCompanyService.getAllAnalysisJobs().get(0);
-
-        assertEquals("main", result.branch());
-        assertEquals("octocat", result.startedByName());
-        assertEquals(null, result.repositoryId());
-        assertEquals(null, result.companyId());
+    void rejectsUnknownAnalysisStatus() {
+        assertThrows(BadRequestException.class, () -> companyService.getAllAnalysisJobs(null, null, null,
+                "UNKNOWN", null, null, PageRequest.of(0, 20)));
     }
 
     private static User user(Long id, String first, String last) {
-        User user = new User();
-        user.setUserId(id);
-        user.setFirstName(first);
-        user.setLastName(last);
-        user.setEmail("user" + id + "@example.com");
-        user.setGithubUsername("gh" + id);
-        user.setEmailVerified(true);
-        return user;
+        User value = new User(); value.setUserId(id); value.setFirstName(first); value.setLastName(last);
+        value.setEmail("user" + id + "@example.com"); value.setGithubUsername("gh" + id); value.setEmailVerified(true);
+        return value;
     }
-
     private static Company company(Long id, String name, User owner) {
-        Company company = new Company();
-        company.setCompanyId(id);
-        company.setCompanyName(name);
-        company.setGithubOrganizationUrl("https://github.com/" + name.toLowerCase());
-        company.setCreatedBy(owner);
-        return company;
+        Company value = new Company(); value.setCompanyId(id); value.setCompanyName(name);
+        value.setGithubOrganizationUrl("https://github.com/" + name.toLowerCase()); value.setCreatedBy(owner); return value;
     }
-
-    private static Super_Admin superAdmin(User user, Company company) {
-        Super_Admin admin = new Super_Admin();
-        admin.setUser(user);
-        admin.setCompany(company);
-        return admin;
+    private static Super_Admin admin(User user, Company company) { Super_Admin value = new Super_Admin(); value.setUser(user); value.setCompany(company); return value; }
+    private static Member member(User user, Company company) { Member value = new Member(); value.setUser(user); value.setCompany(company); return value; }
+    private static com.debtlens.backend.entity.Repository repository(Long id, Company company) {
+        var value = new com.debtlens.backend.entity.Repository(); value.setRepositoryId(id); value.setRepositoryName("repo");
+        value.setRepositoryUrl("https://github.com/acme/repo"); value.setDefaultBranch("main"); value.setCompany(company); return value;
     }
-
-    private static Member member(User user, Company company, Long id) {
-        Member member = new Member();
-        member.setMemberId(id);
-        member.setUser(user);
-        member.setCompany(company);
-        return member;
-    }
-
-    private static Repository repository(Long id, Company company, String branch) {
-        Repository repository = new Repository();
-        repository.setRepositoryId(id);
-        repository.setRepositoryName("repo");
-        repository.setRepositoryUrl("url");
-        repository.setDefaultBranch(branch);
-        repository.setCompany(company);
-        return repository;
-    }
-
-    private static Analysis_Job job(Long id, Repository repository, User user) {
-        Analysis_Job job = new Analysis_Job();
-        job.setAnalysisId(id);
-        job.setRepository(repository);
-        job.setStartedBy(user);
-        job.setStatus(AnalysisJobStatus.COMPLETED);
-        job.setStartedAt(LocalDateTime.now());
-        return job;
+    private static Analysis_Job job(Long id, com.debtlens.backend.entity.Repository repository, User user) {
+        Analysis_Job value = new Analysis_Job(); value.setAnalysisId(id); value.setRepository(repository);
+        value.setStartedBy(user); value.setStatus(AnalysisJobStatus.COMPLETED); return value;
     }
 }

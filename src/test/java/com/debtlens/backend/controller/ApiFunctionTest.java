@@ -5,6 +5,7 @@ import com.debtlens.backend.dto.response.AnalysisResponseDTO;
 import com.debtlens.backend.dto.response.CompanyResponseDTO;
 import com.debtlens.backend.dto.response.InvitationResponseDTO;
 import com.debtlens.backend.dto.response.RegistrationResponse;
+import com.debtlens.backend.dto.response.AdminStatsResponseDTO;
 import com.debtlens.backend.entity.AnalysisJobStatus;
 import com.debtlens.backend.entity.InvitationStatus;
 import com.debtlens.backend.exception.GlobalExceptionHandler;
@@ -14,6 +15,7 @@ import com.debtlens.backend.repository.RepositoryRepository;
 import com.debtlens.backend.repository.UserRepository;
 import com.debtlens.backend.service.AdminCompanyService;
 import com.debtlens.backend.service.AdminUserService;
+import com.debtlens.backend.service.AdminDashboardService;
 import com.debtlens.backend.service.AnalysisService;
 import com.debtlens.backend.service.AuthService;
 import com.debtlens.backend.service.CompanyService;
@@ -23,6 +25,8 @@ import com.debtlens.backend.service.SystemHealthService;
 import org.springframework.security.access.AccessDeniedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -98,6 +102,9 @@ class ApiFunctionTest {
 
     @MockitoBean
     private SystemHealthService systemHealthService;
+
+    @MockitoBean
+    private AdminDashboardService adminDashboardService;
 
     @BeforeEach
     void configureSyntheticJwtDecoding() {
@@ -373,16 +380,16 @@ class ApiFunctionTest {
 
     @Test
     void admin_systemAdminRoleClaimCanAccessStats() throws Exception {
-        when(userRepository.count()).thenReturn(12L);
-        when(companyRepository.count()).thenReturn(3L);
-        when(repositoryRepository.count()).thenReturn(8L);
+        when(adminDashboardService.getStats()).thenReturn(new AdminStatsResponseDTO(
+                12L, 3L, 8L, 20L, 1L, 2L, 15L, 2L, 0L));
 
         mockMvc.perform(get("/api/admin/stats")
                         .header(HttpHeaders.AUTHORIZATION, bearer(ADMIN_TOKEN)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalUsers").value(12))
                 .andExpect(jsonPath("$.totalCompanies").value(3))
-                .andExpect(jsonPath("$.totalRepositories").value(8));
+                .andExpect(jsonPath("$.totalRepositories").value(8))
+                .andExpect(jsonPath("$.totalAnalysisJobs").value(20));
     }
 
     @Test
@@ -391,7 +398,7 @@ class ApiFunctionTest {
                         .header(HttpHeaders.AUTHORIZATION, bearer(USER_TOKEN)))
                 .andExpect(status().isForbidden());
 
-        verifyNoInteractions(userRepository, companyRepository, repositoryRepository);
+        verifyNoInteractions(adminDashboardService);
     }
 
     @Test
@@ -399,7 +406,46 @@ class ApiFunctionTest {
         mockMvc.perform(get("/api/admin/stats"))
                 .andExpect(status().isUnauthorized());
 
-        verifyNoInteractions(userRepository, companyRepository, repositoryRepository);
+        verifyNoInteractions(adminDashboardService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/api/admin/companies",
+            "/api/admin/companies/10",
+            "/api/admin/companies/10/repositories",
+            "/api/admin/companies/10/users",
+            "/api/admin/companies/10/analysis-jobs",
+            "/api/admin/users",
+            "/api/admin/analysis-jobs",
+            "/api/admin/analysis-jobs/75",
+            "/api/admin/stats",
+            "/api/admin/activity",
+            "/api/admin/search?q=ac",
+            "/api/admin/health"
+    })
+    void everyAdminEndpointRejectsNormalUsers(String path) throws Exception {
+        mockMvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, bearer(USER_TOKEN)))
+                .andExpect(status().isForbidden());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/api/admin/companies",
+            "/api/admin/companies/10",
+            "/api/admin/companies/10/repositories",
+            "/api/admin/companies/10/users",
+            "/api/admin/companies/10/analysis-jobs",
+            "/api/admin/users",
+            "/api/admin/analysis-jobs",
+            "/api/admin/analysis-jobs/75",
+            "/api/admin/stats",
+            "/api/admin/activity",
+            "/api/admin/search?q=ac",
+            "/api/admin/health"
+    })
+    void everyAdminEndpointRejectsAnonymousRequests(String path) throws Exception {
+        mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
     }
 
     private static String bearer(String token) {
