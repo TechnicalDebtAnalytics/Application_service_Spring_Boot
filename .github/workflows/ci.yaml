@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - develop
+      - development
       - Muditha
       - muditha/CloudAMQP
       - CloudAMQP
@@ -13,6 +14,7 @@ on:
     branches:
       - main
       - develop
+      - development
       - Muditha
       - muditha/CloudAMQP
       - CloudAMQP
@@ -58,7 +60,7 @@ jobs:
     name: Build & Push Docker Image
     needs: test-and-build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/deployment' || github.ref == 'refs/heads/develop')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/deployment')
 
     steps:
       - name: Checkout source code

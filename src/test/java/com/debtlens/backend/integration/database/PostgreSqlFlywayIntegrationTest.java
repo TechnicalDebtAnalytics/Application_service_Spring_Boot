@@ -99,9 +99,9 @@ class PostgreSqlFlywayIntegrationTest {
         }
 
         assertTrue(flyway.validateWithResult().validationSuccessful);
-        assertEquals(17, flyway.info().applied().length);
+        assertEquals(18, flyway.info().applied().length);
         assertEquals(
-                17,
+                18,
                 jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM flyway_schema_history WHERE success",
                         Integer.class
@@ -187,7 +187,7 @@ class PostgreSqlFlywayIntegrationTest {
             assertEquals(POSTGRES.getDatabaseName(), connection.getCatalog());
         }
         assertTrue(flyway.validateWithResult().validationSuccessful);
-        assertEquals(17, flyway.info().applied().length);
+        assertEquals(18, flyway.info().applied().length);
 
         User recoveredUser = userRepository.findById(retainedUserId).orElseThrow();
         assertEquals("auth0|recovery-user", recoveredUser.getAuth0UserId());

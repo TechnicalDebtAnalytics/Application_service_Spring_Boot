@@ -13,6 +13,21 @@ public record CompanyResponseDTO(
         int totalRepositories,
         List<RepositoryResponseDTO> repositories,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        Long githubInstallationId
 ) {
+    public CompanyResponseDTO(
+            Long companyId,
+            String companyName,
+            String githubOrganizationUrl,
+            String githubOrganizationName,
+            Long createdByUserId,
+            String createdByName,
+            int totalRepositories,
+            List<RepositoryResponseDTO> repositories,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
+    ) {
+        this(companyId, companyName, githubOrganizationUrl, githubOrganizationName, createdByUserId, createdByName, totalRepositories, repositories, createdAt, updatedAt, null);
+    }
 }

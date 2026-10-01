@@ -1,6 +1,7 @@
 package com.debtlens.backend.controller;
 
 import com.debtlens.backend.integration.github.GithubService;
+import com.debtlens.backend.integration.github.dto.GithubAppInfoResponse;
 import com.debtlens.backend.integration.github.dto.GithubContributorResponse;
 import com.debtlens.backend.integration.github.dto.GithubMemberResponse;
 import com.debtlens.backend.integration.github.dto.GithubMemberValidationResponse;
@@ -24,36 +25,53 @@ public class GithubController {
         this.auth0UserService = auth0UserService;
     }
 
+    @GetMapping("/app/info")
+    public ResponseEntity<GithubAppInfoResponse> getAppInfo() {
+        return ResponseEntity.ok(githubService.getAppInfo());
+    }
+
     @GetMapping("/orgs/{orgName}")
     public ResponseEntity<GithubOrgResponse> getOrganization(
-            @PathVariable String orgName
+            @PathVariable String orgName,
+            @RequestParam(required = false) Long installationId
     ) {
-        GithubOrgResponse org = githubService.getOrganization(orgName);
+        GithubOrgResponse org = installationId != null
+                ? githubService.getOrganization(orgName, installationId)
+                : githubService.getOrganization(orgName);
         return ResponseEntity.ok(org);
     }
 
     @GetMapping("/orgs/{orgName}/repos")
     public ResponseEntity<List<GithubRepoResponse>> getRepositories(
-            @PathVariable String orgName
+            @PathVariable String orgName,
+            @RequestParam(required = false) Long installationId
     ) {
-        List<GithubRepoResponse> repos = githubService.getRepositories(orgName);
+        List<GithubRepoResponse> repos = installationId != null
+                ? githubService.getRepositories(orgName, installationId)
+                : githubService.getRepositories(orgName);
         return ResponseEntity.ok(repos);
     }
 
     @GetMapping("/orgs/{orgName}/members")
     public ResponseEntity<List<GithubMemberResponse>> getMembers(
-            @PathVariable String orgName
+            @PathVariable String orgName,
+            @RequestParam(required = false) Long installationId
     ) {
-        List<GithubMemberResponse> members = githubService.getMembers(orgName);
+        List<GithubMemberResponse> members = installationId != null
+                ? githubService.getMembers(orgName, installationId)
+                : githubService.getMembers(orgName);
         return ResponseEntity.ok(members);
     }
 
     @GetMapping("/repos/{owner}/{repo}/contributors")
     public ResponseEntity<List<GithubContributorResponse>> getContributors(
             @PathVariable String owner,
-            @PathVariable String repo
+            @PathVariable String repo,
+            @RequestParam(required = false) Long installationId
     ) {
-        List<GithubContributorResponse> contributors = githubService.getContributors(owner, repo);
+        List<GithubContributorResponse> contributors = installationId != null
+                ? githubService.getContributors(owner, repo, installationId)
+                : githubService.getContributors(owner, repo);
         return ResponseEntity.ok(contributors);
     }
 
@@ -64,10 +82,13 @@ public class GithubController {
      */
     @GetMapping("/orgs/{orgName}/validate-my-membership")
     public ResponseEntity<GithubMemberValidationResponse> validateMyMembership(
-            @PathVariable String orgName
+            @PathVariable String orgName,
+            @RequestParam(required = false) Long installationId
     ) {
         String auth0UserId = auth0UserService.getAuthenticatedAuth0UserId();
-        GithubMemberValidationResponse result = githubService.validateUserMembershipByAuth0UserId(orgName, auth0UserId);
+        GithubMemberValidationResponse result = installationId != null
+                ? githubService.validateUserMembershipByAuth0UserId(orgName, auth0UserId, installationId)
+                : githubService.validateUserMembershipByAuth0UserId(orgName, auth0UserId);
         return ResponseEntity.ok(result);
     }
 }

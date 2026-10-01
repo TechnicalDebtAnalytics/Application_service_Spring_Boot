@@ -23,33 +23,66 @@ public class GithubClient {
     private static final Logger log = LoggerFactory.getLogger(GithubClient.class);
 
     private final RestClient restClient;
+    private final GithubAppTokenService githubAppTokenService;
+    private final String defaultToken;
 
-    public GithubClient(GithubConfig githubConfig) {
+    public GithubClient(GithubConfig githubConfig, GithubAppTokenService githubAppTokenService) {
+        this.githubAppTokenService = githubAppTokenService;
+        this.defaultToken = githubConfig.token() != null && !githubConfig.token().isBlank()
+                ? githubConfig.token().trim()
+                : null;
+
         RestClient.Builder builder = RestClient.builder()
                 .baseUrl(githubConfig.apiUrl())
                 .defaultHeader("User-Agent", "DebtLens-App")
                 .defaultHeader("Accept", "application/vnd.github+json")
                 .defaultHeader("X-GitHub-Api-Version", "2022-11-28");
 
-        if (githubConfig.token() != null && !githubConfig.token().isBlank()) {
-            builder.defaultHeader("Authorization", "Bearer " + githubConfig.token().trim());
-            log.info("GitHub API client initialized with configured Personal Access Token.");
-        } else {
-            log.warn("GitHub API client initialized without token. Unauthenticated rate limits (60 req/hr) apply.");
-        }
-
         this.restClient = builder.build();
+
+        if (this.defaultToken != null) {
+            log.info("GitHub API client initialized with default fallback token.");
+        } else {
+            log.warn("GitHub API client initialized without default token.");
+        }
+    }
+
+    private String resolveAuthHeader(Long installationId) {
+        if (installationId != null && githubAppTokenService.isConfigured()) {
+            try {
+                String instToken = githubAppTokenService.getInstallationAccessToken(installationId);
+                if (instToken != null && !instToken.isBlank()) {
+                    return "Bearer " + instToken;
+                }
+            } catch (Exception ex) {
+                log.warn("Could not retrieve installation token for installationId {}: {}", installationId, ex.getMessage());
+            }
+        }
+        if (defaultToken != null) {
+            return "Bearer " + defaultToken;
+        }
+        return null;
     }
 
     /**
      * Fetch GitHub organization metadata.
      */
     public GithubOrgResponse getOrganization(String orgName) {
+        return getOrganization(orgName, null);
+    }
+
+    public GithubOrgResponse getOrganization(String orgName, Long installationId) {
         try {
-            return restClient.get()
+            var request = restClient.get()
                     .uri("/orgs/{org}", orgName)
-                    .accept(MediaType.APPLICATION_JSON)
-                    .retrieve()
+                    .accept(MediaType.APPLICATION_JSON);
+
+            String authHeader = resolveAuthHeader(installationId);
+            if (authHeader != null) {
+                request.header("Authorization", authHeader);
+            }
+
+            return request.retrieve()
                     .onStatus(status -> status.value() == 404, (req, res) -> {
                         throw new ResourceNotFoundException("GitHub organization '" + orgName + "' not found");
                     })
@@ -63,11 +96,21 @@ public class GithubClient {
      * Fetch repositories belonging to the organization.
      */
     public List<GithubRepoResponse> getOrganizationRepositories(String orgName) {
+        return getOrganizationRepositories(orgName, null);
+    }
+
+    public List<GithubRepoResponse> getOrganizationRepositories(String orgName, Long installationId) {
         try {
-            List<GithubRepoResponse> repos = restClient.get()
+            var request = restClient.get()
                     .uri("/orgs/{org}/repos?per_page=100&type=all&sort=updated", orgName)
-                    .accept(MediaType.APPLICATION_JSON)
-                    .retrieve()
+                    .accept(MediaType.APPLICATION_JSON);
+
+            String authHeader = resolveAuthHeader(installationId);
+            if (authHeader != null) {
+                request.header("Authorization", authHeader);
+            }
+
+            List<GithubRepoResponse> repos = request.retrieve()
                     .onStatus(status -> status.value() == 404, (req, res) -> {
                         throw new ResourceNotFoundException("GitHub organization '" + orgName + "' not found");
                     })
@@ -83,11 +126,21 @@ public class GithubClient {
      * Fetch public members of the organization.
      */
     public List<GithubMemberResponse> getOrganizationMembers(String orgName) {
+        return getOrganizationMembers(orgName, null);
+    }
+
+    public List<GithubMemberResponse> getOrganizationMembers(String orgName, Long installationId) {
         try {
-            List<GithubMemberResponse> members = restClient.get()
+            var request = restClient.get()
                     .uri("/orgs/{org}/members?per_page=100", orgName)
-                    .accept(MediaType.APPLICATION_JSON)
-                    .retrieve()
+                    .accept(MediaType.APPLICATION_JSON);
+
+            String authHeader = resolveAuthHeader(installationId);
+            if (authHeader != null) {
+                request.header("Authorization", authHeader);
+            }
+
+            List<GithubMemberResponse> members = request.retrieve()
                     .onStatus(status -> status.value() == 404, (req, res) -> {
                         throw new ResourceNotFoundException("GitHub organization '" + orgName + "' not found");
                     })
@@ -105,13 +158,23 @@ public class GithubClient {
      * Returns 204 No Content if public member, 404 Not Found if not a public member.
      */
     public boolean isPublicMember(String orgName, String username) {
+        return isPublicMember(orgName, username, null);
+    }
+
+    public boolean isPublicMember(String orgName, String username, Long installationId) {
         try {
-            return restClient.get()
-                    .uri("/orgs/{org}/public_members/{username}", orgName, username)
-                    .exchange((req, res) -> {
-                        HttpStatusCode statusCode = res.getStatusCode();
-                        return statusCode.value() == 204 || statusCode.is2xxSuccessful();
-                    });
+            var request = restClient.get()
+                    .uri("/orgs/{org}/public_members/{username}", orgName, username);
+
+            String authHeader = resolveAuthHeader(installationId);
+            if (authHeader != null) {
+                request.header("Authorization", authHeader);
+            }
+
+            return request.exchange((req, res) -> {
+                HttpStatusCode statusCode = res.getStatusCode();
+                return statusCode.value() == 204 || statusCode.is2xxSuccessful();
+            });
         } catch (Exception ex) {
             log.debug("GitHub public membership check failed for {} in {}: {}", username, orgName, ex.getMessage());
             return false;
@@ -123,17 +186,26 @@ public class GithubClient {
      * Combines default branch contributors with authors from all active branches.
      */
     public List<com.debtlens.backend.integration.github.dto.GithubContributorResponse> getRepoContributors(String owner, String repo) {
+        return getRepoContributors(owner, repo, null);
+    }
+
+    public List<com.debtlens.backend.integration.github.dto.GithubContributorResponse> getRepoContributors(String owner, String repo, Long installationId) {
         String cleanOwner = owner.trim();
         String cleanRepo = repo.trim();
         java.util.Map<String, com.debtlens.backend.integration.github.dto.GithubContributorResponse> contributorsByLogin = new java.util.LinkedHashMap<>();
+        String authHeader = resolveAuthHeader(installationId);
 
         try {
             // 1. Fetch contributors from default contributors endpoint
             try {
-                List<com.debtlens.backend.integration.github.dto.GithubContributorResponse> baseContributors = restClient.get()
+                var request = restClient.get()
                         .uri("/repos/{owner}/{repo}/contributors?per_page=100", cleanOwner, cleanRepo)
-                        .accept(MediaType.APPLICATION_JSON)
-                        .retrieve()
+                        .accept(MediaType.APPLICATION_JSON);
+                if (authHeader != null) {
+                    request.header("Authorization", authHeader);
+                }
+
+                List<com.debtlens.backend.integration.github.dto.GithubContributorResponse> baseContributors = request.retrieve()
                         .onStatus(status -> status.value() == 404, (req, res) -> {
                             throw new ResourceNotFoundException("Repository '" + cleanOwner + "/" + cleanRepo + "' not found on GitHub");
                         })
@@ -156,20 +228,28 @@ public class GithubClient {
 
             // 2. Fetch all branches of the repository so contributors across every branch are included
             try {
-                List<com.debtlens.backend.integration.github.dto.GithubBranchResponse> branches = restClient.get()
+                var branchRequest = restClient.get()
                         .uri("/repos/{owner}/{repo}/branches?per_page=100", cleanOwner, cleanRepo)
-                        .accept(MediaType.APPLICATION_JSON)
-                        .retrieve()
+                        .accept(MediaType.APPLICATION_JSON);
+                if (authHeader != null) {
+                    branchRequest.header("Authorization", authHeader);
+                }
+
+                List<com.debtlens.backend.integration.github.dto.GithubBranchResponse> branches = branchRequest.retrieve()
                         .body(new ParameterizedTypeReference<List<com.debtlens.backend.integration.github.dto.GithubBranchResponse>>() {});
 
                 if (branches != null && !branches.isEmpty()) {
                     for (com.debtlens.backend.integration.github.dto.GithubBranchResponse branch : branches) {
                         if (branch == null || branch.name() == null || branch.name().isBlank()) continue;
                         try {
-                            List<com.debtlens.backend.integration.github.dto.GithubCommitItem> commits = restClient.get()
+                            var commitRequest = restClient.get()
                                     .uri("/repos/{owner}/{repo}/commits?sha={branch}&per_page=100", cleanOwner, cleanRepo, branch.name())
-                                    .accept(MediaType.APPLICATION_JSON)
-                                    .retrieve()
+                                    .accept(MediaType.APPLICATION_JSON);
+                            if (authHeader != null) {
+                                commitRequest.header("Authorization", authHeader);
+                            }
+
+                            List<com.debtlens.backend.integration.github.dto.GithubCommitItem> commits = commitRequest.retrieve()
                                     .body(new ParameterizedTypeReference<List<com.debtlens.backend.integration.github.dto.GithubCommitItem>>() {});
 
                             if (commits != null) {
@@ -221,4 +301,4 @@ public class GithubClient {
             return new java.util.ArrayList<>(contributorsByLogin.values());
         }
     }
-}
+}

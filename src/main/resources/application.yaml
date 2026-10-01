@@ -83,9 +83,16 @@ auth0:
 github:
   token: ${GITHUB_TOKEN:}
   api-url: ${GITHUB_API_URL:https://api.github.com}
-
 services:
   analysis:
     health-url: ${ANALYSIS_SERVICE_HEALTH_URL:http://localhost:8082/actuator/health}
   ml:
     health-url: ${ML_SERVICE_HEALTH_URL:http://localhost:8000/health}
+
+app:
+  id: ${GITHUB_APP_ID}
+  slug: ${GITHUB_APP_SLUG:debtlens}
+  private-key-path: ${GITHUB_APP_PRIVATE_KEY_PATH:}
+  private-key-base64: ${GITHUB_APP_PRIVATE_KEY_BASE64:}
+  client-id: ${GITHUB_APP_CLIENT_ID:}
+  client-secret: ${GITHUB_APP_CLIENT_SECRET:}

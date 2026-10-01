@@ -12,6 +12,11 @@ public record CompanyRequestDTO(
         String githubOrganizationName,
 
         @NotEmpty(message = "At least one repository must be selected")
-        List<SelectedRepoDTO> selectedRepositories
+        List<SelectedRepoDTO> selectedRepositories,
+
+        Long githubInstallationId
 ) {
+    public CompanyRequestDTO(String companyName, String githubOrganizationName, List<SelectedRepoDTO> selectedRepositories) {
+        this(companyName, githubOrganizationName, selectedRepositories, null);
+    }
 }
