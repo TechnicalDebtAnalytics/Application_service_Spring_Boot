@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         "spring.jpa.hibernate.ddl-auto=validate"
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 class PostgreSqlFlywayIntegrationTest {
 
     private static final Set<String> EXPECTED_APPLICATION_TABLES = Set.of(

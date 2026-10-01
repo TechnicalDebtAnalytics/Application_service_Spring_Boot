@@ -12,6 +12,10 @@ public interface Super_AdminRepository extends JpaRepository<Super_Admin, Long> 
 
     List<Super_Admin> findByCompanyCompanyId(Long companyId);
 
+    List<Super_Admin> findByUserUserIdIn(List<Long> userIds);
+
+    List<Super_Admin> findByCompanyCompanyIdIn(List<Long> companyIds);
+
     Optional<Super_Admin> findByUserUserIdAndCompanyCompanyId(Long userId, Long companyId);
 
     boolean existsByUserUserIdAndCompanyCompanyId(Long userId, Long companyId);

@@ -12,6 +12,10 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 
     List<Member> findByCompanyCompanyId(Long companyId);
 
+    List<Member> findByUserUserIdIn(List<Long> userIds);
+
+    List<Member> findByCompanyCompanyIdIn(List<Long> companyIds);
+
     Optional<Member> findByUserUserIdAndCompanyCompanyId(
             Long userId,
             Long companyId
