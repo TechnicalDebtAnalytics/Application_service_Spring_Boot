@@ -16,6 +16,8 @@ public class CacheConfig {
     public static final String CACHE_GITHUB_CONTRIBUTORS = "github-contributors";
     public static final String CACHE_GITHUB_REPOSITORIES = "github-repos";
     public static final String CACHE_GITHUB_MEMBERS = "github-members";
+    public static final String CACHE_ANALYSIS_REPORTS = "analysis-reports";
+    public static final String CACHE_COMPANY_REPOSITORIES = "company-repositories";
 
     @Bean
     public Caffeine<Object, Object> caffeineConfig() {
@@ -30,7 +32,9 @@ public class CacheConfig {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager(
                 CACHE_GITHUB_CONTRIBUTORS,
                 CACHE_GITHUB_REPOSITORIES,
-                CACHE_GITHUB_MEMBERS
+                CACHE_GITHUB_MEMBERS,
+                CACHE_ANALYSIS_REPORTS,
+                CACHE_COMPANY_REPOSITORIES
         );
         cacheManager.setCaffeine(caffeine);
         return cacheManager;
