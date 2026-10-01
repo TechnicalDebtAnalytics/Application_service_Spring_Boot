@@ -504,6 +504,50 @@ class AnalysisServiceImplTest {
         verifyNoInteractions(statusHistoryRepository, classMetricsRepository, classCommentRepository, mlJobProducer);
     }
 
+    @Test
+    void cancelAnalysis_shouldCancelRunningOrQueuedJob() {
+        Repository repository = repository(42L, "debt-lens", "https://github.com/org/debt-lens.git", "main");
+        Analysis_Job runningJob = job(100L, AnalysisJobStatus.RUNNING, repository);
+
+        when(analysisJobRepository.findById(100L)).thenReturn(Optional.of(runningJob));
+        when(analysisJobRepository.save(any(Analysis_Job.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AnalysisResponseDTO response = service.cancelAnalysis(100L);
+
+        assertNotNull(response);
+        assertEquals(AnalysisJobStatus.CANCELLED, response.status());
+        verify(analysisJobRepository).save(runningJob);
+        verify(statusHistoryRepository).save(any(Analysis_Status_History.class));
+    }
+
+    @Test
+    void cancelRepositoryAnalysis_shouldFindAndCancelActiveJob() {
+        Repository repository = repository(42L, "debt-lens", "https://github.com/org/debt-lens.git", "main");
+        Analysis_Job queuedJob = job(101L, AnalysisJobStatus.QUEUED, repository);
+
+        when(analysisJobRepository.findByRepositoryRepositoryIdOrderByStartedAtDesc(42L)).thenReturn(List.of(queuedJob));
+        when(analysisJobRepository.findById(101L)).thenReturn(Optional.of(queuedJob));
+        when(analysisJobRepository.save(any(Analysis_Job.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AnalysisResponseDTO response = service.cancelRepositoryAnalysis(42L);
+
+        assertNotNull(response);
+        assertEquals(AnalysisJobStatus.CANCELLED, response.status());
+    }
+
+    @Test
+    void processAnalysisResult_shouldSkipCancelledJob() {
+        Repository repository = repository(42L, "debt-lens", "https://github.com/org/debt-lens.git", "main");
+        Analysis_Job cancelledJob = job(102L, AnalysisJobStatus.CANCELLED, repository);
+
+        when(analysisJobRepository.findById(102L)).thenReturn(Optional.of(cancelledJob));
+
+        service.processAnalysisResult(successfulResult("102", List.of()));
+
+        verify(analysisJobRepository, never()).save(any());
+        verifyNoInteractions(statusHistoryRepository, classMetricsRepository, mlJobProducer);
+    }
+
     private static AnalysisResultDTO successfulResult(String jobId, List<ClassMetricsDTO> metrics) {
         return AnalysisResultDTO.builder()
                 .jobId(jobId)
