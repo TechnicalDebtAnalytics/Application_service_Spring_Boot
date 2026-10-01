@@ -89,6 +89,7 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 HttpMethod.GET,
+                                "/api/github/app/info",
                                 "/api/github/orgs/*",
                                 "/api/github/orgs/*/repos",
                                 "/api/github/orgs/*/members",
