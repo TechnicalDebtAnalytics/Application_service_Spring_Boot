@@ -119,26 +119,106 @@ public class GithubClient {
     }
 
     /**
-     * Fetch contributors for a specific repository.
-     * GitHub endpoint: GET /repos/{owner}/{repo}/contributors?per_page=100
+     * Fetch contributors for a specific repository across ALL branches.
+     * Combines default branch contributors with authors from all active branches.
      */
     public List<com.debtlens.backend.integration.github.dto.GithubContributorResponse> getRepoContributors(String owner, String repo) {
-        try {
-            List<com.debtlens.backend.integration.github.dto.GithubContributorResponse> contributors = restClient.get()
-                    .uri("/repos/{owner}/{repo}/contributors?per_page=100", owner, repo)
-                    .accept(MediaType.APPLICATION_JSON)
-                    .retrieve()
-                    .onStatus(status -> status.value() == 404, (req, res) -> {
-                        throw new ResourceNotFoundException("Repository '" + owner + "/" + repo + "' not found on GitHub");
-                    })
-                    .body(new ParameterizedTypeReference<List<com.debtlens.backend.integration.github.dto.GithubContributorResponse>>() {});
+        String cleanOwner = owner.trim();
+        String cleanRepo = repo.trim();
+        java.util.Map<String, com.debtlens.backend.integration.github.dto.GithubContributorResponse> contributorsByLogin = new java.util.LinkedHashMap<>();
 
-            return contributors != null ? contributors : Collections.emptyList();
-        } catch (HttpClientErrorException.NotFound ex) {
-            throw new ResourceNotFoundException("Repository '" + owner + "/" + repo + "' not found on GitHub");
+        try {
+            // 1. Fetch contributors from default contributors endpoint
+            try {
+                List<com.debtlens.backend.integration.github.dto.GithubContributorResponse> baseContributors = restClient.get()
+                        .uri("/repos/{owner}/{repo}/contributors?per_page=100", cleanOwner, cleanRepo)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .retrieve()
+                        .onStatus(status -> status.value() == 404, (req, res) -> {
+                            throw new ResourceNotFoundException("Repository '" + cleanOwner + "/" + cleanRepo + "' not found on GitHub");
+                        })
+                        .body(new ParameterizedTypeReference<List<com.debtlens.backend.integration.github.dto.GithubContributorResponse>>() {});
+
+                if (baseContributors != null) {
+                    for (com.debtlens.backend.integration.github.dto.GithubContributorResponse c : baseContributors) {
+                        if (c != null && c.login() != null && !c.login().isBlank()) {
+                            contributorsByLogin.put(c.login().toLowerCase(), c);
+                        }
+                    }
+                }
+            } catch (HttpClientErrorException.NotFound ex) {
+                throw new ResourceNotFoundException("Repository '" + cleanOwner + "/" + cleanRepo + "' not found on GitHub");
+            } catch (ResourceNotFoundException ex) {
+                throw ex;
+            } catch (Exception ex) {
+                log.warn("Failed base contributor fetch for {}/{}: {}", cleanOwner, cleanRepo, ex.getMessage());
+            }
+
+            // 2. Fetch all branches of the repository so contributors across every branch are included
+            try {
+                List<com.debtlens.backend.integration.github.dto.GithubBranchResponse> branches = restClient.get()
+                        .uri("/repos/{owner}/{repo}/branches?per_page=100", cleanOwner, cleanRepo)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .retrieve()
+                        .body(new ParameterizedTypeReference<List<com.debtlens.backend.integration.github.dto.GithubBranchResponse>>() {});
+
+                if (branches != null && !branches.isEmpty()) {
+                    for (com.debtlens.backend.integration.github.dto.GithubBranchResponse branch : branches) {
+                        if (branch == null || branch.name() == null || branch.name().isBlank()) continue;
+                        try {
+                            List<com.debtlens.backend.integration.github.dto.GithubCommitItem> commits = restClient.get()
+                                    .uri("/repos/{owner}/{repo}/commits?sha={branch}&per_page=100", cleanOwner, cleanRepo, branch.name())
+                                    .accept(MediaType.APPLICATION_JSON)
+                                    .retrieve()
+                                    .body(new ParameterizedTypeReference<List<com.debtlens.backend.integration.github.dto.GithubCommitItem>>() {});
+
+                            if (commits != null) {
+                                for (com.debtlens.backend.integration.github.dto.GithubCommitItem commit : commits) {
+                                    if (commit == null) continue;
+                                    com.debtlens.backend.integration.github.dto.GithubCommitItem.GithubCommitUser user =
+                                            commit.author() != null && commit.author().login() != null ? commit.author() : commit.committer();
+
+                                    if (user != null && user.login() != null && !user.login().isBlank()) {
+                                        String loginKey = user.login().toLowerCase();
+                                        if (!contributorsByLogin.containsKey(loginKey)) {
+                                            contributorsByLogin.put(loginKey, new com.debtlens.backend.integration.github.dto.GithubContributorResponse(
+                                                    user.id(),
+                                                    user.login(),
+                                                    user.avatarUrl(),
+                                                    user.htmlUrl(),
+                                                    1,
+                                                    user.type() != null ? user.type() : "User"
+                                            ));
+                                        } else {
+                                            com.debtlens.backend.integration.github.dto.GithubContributorResponse existing = contributorsByLogin.get(loginKey);
+                                            int count = existing.contributions() != null ? existing.contributions() : 0;
+                                            contributorsByLogin.put(loginKey, new com.debtlens.backend.integration.github.dto.GithubContributorResponse(
+                                                    existing.id() != null ? existing.id() : user.id(),
+                                                    existing.login(),
+                                                    existing.avatarUrl() != null ? existing.avatarUrl() : user.avatarUrl(),
+                                                    existing.htmlUrl() != null ? existing.htmlUrl() : user.htmlUrl(),
+                                                    count + 1,
+                                                    existing.type() != null ? existing.type() : "User"
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Exception ex) {
+                            log.debug("Could not fetch commits for branch {} of {}/{}: {}", branch.name(), cleanOwner, cleanRepo, ex.getMessage());
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                log.debug("Could not fetch branches for repository {}/{}: {}", cleanOwner, cleanRepo, ex.getMessage());
+            }
+
+            return new java.util.ArrayList<>(contributorsByLogin.values());
+        } catch (ResourceNotFoundException ex) {
+            throw ex;
         } catch (Exception ex) {
-            log.warn("Failed to fetch contributors for {}/{}: {}", owner, repo, ex.getMessage());
-            return Collections.emptyList();
+            log.warn("Failed to fetch repository-wide contributors for {}/{}: {}", cleanOwner, cleanRepo, ex.getMessage());
+            return new java.util.ArrayList<>(contributorsByLogin.values());
         }
     }
 }
