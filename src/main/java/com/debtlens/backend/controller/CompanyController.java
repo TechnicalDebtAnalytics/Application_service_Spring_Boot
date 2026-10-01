@@ -2,6 +2,7 @@ package com.debtlens.backend.controller;
 
 import com.debtlens.backend.dto.request.AddRepositoriesRequestDTO;
 import com.debtlens.backend.dto.request.CompanyRequestDTO;
+import com.debtlens.backend.dto.request.LinkGithubInstallationDTO;
 import com.debtlens.backend.dto.response.CompanyAvailableRepoDTO;
 import com.debtlens.backend.dto.response.CompanyResponseDTO;
 import com.debtlens.backend.dto.response.RepositoryResponseDTO;
@@ -94,5 +95,17 @@ public class CompanyController {
     ) {
         List<RepositoryResponseDTO> repos = companyService.getCompanyRepositories(companyId);
         return ResponseEntity.ok(repos);
+    }
+
+    /**
+     * Link or update the GitHub App Installation ID for a company (Super Admin only).
+     */
+    @PostMapping("/{companyId}/github-installation")
+    public ResponseEntity<CompanyResponseDTO> linkGithubInstallation(
+            @PathVariable Long companyId,
+            @Valid @RequestBody LinkGithubInstallationDTO request
+    ) {
+        CompanyResponseDTO updated = companyService.linkGithubInstallation(companyId, request.installationId());
+        return ResponseEntity.ok(updated);
     }
 }

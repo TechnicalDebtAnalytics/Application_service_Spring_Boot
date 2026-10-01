@@ -20,6 +20,9 @@ public class Company {
     @Column(name = "github_organization_url", nullable = false, unique = true)
     private String githubOrganizationUrl;
 
+    @Column(name = "github_installation_id")
+    private Long githubInstallationId;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
@@ -67,6 +70,14 @@ public class Company {
 
     public void setGithubOrganizationUrl(String githubOrganizationUrl) {
         this.githubOrganizationUrl = githubOrganizationUrl;
+    }
+
+    public Long getGithubInstallationId() {
+        return githubInstallationId;
+    }
+
+    public void setGithubInstallationId(Long githubInstallationId) {
+        this.githubInstallationId = githubInstallationId;
     }
 
     public User getCreatedBy() {

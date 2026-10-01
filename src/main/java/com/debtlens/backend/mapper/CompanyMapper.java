@@ -50,7 +50,8 @@ public class CompanyMapper {
                 repoDTOs.size(),
                 repoDTOs,
                 company.getCreatedAt(),
-                company.getUpdatedAt()
+                company.getUpdatedAt(),
+                company.getGithubInstallationId()
         );
     }
 
@@ -85,7 +86,8 @@ public class CompanyMapper {
                 repoDTOs.size(),
                 repoDTOs,
                 company.getCreatedAt(),
-                company.getUpdatedAt()
+                company.getUpdatedAt(),
+                company.getGithubInstallationId()
         );
     }
 }
