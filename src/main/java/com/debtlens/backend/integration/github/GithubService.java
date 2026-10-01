@@ -8,6 +8,7 @@ import com.debtlens.backend.integration.github.dto.GithubMemberValidationRespons
 import com.debtlens.backend.integration.github.dto.GithubOrgResponse;
 import com.debtlens.backend.integration.github.dto.GithubRepoResponse;
 import com.debtlens.backend.repository.UserRepository;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -34,6 +35,7 @@ public class GithubService {
     /**
      * Get organization repositories for repository selection.
      */
+    @Cacheable(value = "github-repos", key = "#orgName.trim().toLowerCase()")
     public List<GithubRepoResponse> getRepositories(String orgName) {
         validateName(orgName, "Organization name");
         return githubClient.getOrganizationRepositories(orgName.trim());
@@ -42,6 +44,7 @@ public class GithubService {
     /**
      * Get public members of an organization.
      */
+    @Cacheable(value = "github-members", key = "#orgName.trim().toLowerCase()")
     public List<GithubMemberResponse> getMembers(String orgName) {
         validateName(orgName, "Organization name");
         return githubClient.getOrganizationMembers(orgName.trim());
@@ -50,6 +53,7 @@ public class GithubService {
     /**
      * Get contributors for a specific repository.
      */
+    @Cacheable(value = "github-contributors", key = "#owner.trim().toLowerCase() + '/' + #repo.trim().toLowerCase()")
     public List<com.debtlens.backend.integration.github.dto.GithubContributorResponse> getContributors(String owner, String repo) {
         validateName(owner, "Repository owner / organization");
         validateName(repo, "Repository name");
