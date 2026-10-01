@@ -29,6 +29,22 @@ public class AnalysisController {
 
 
    
+    @PostMapping("/repositories/{repositoryId}/analysis/cancel")
+    public ResponseEntity<AnalysisResponseDTO> cancelRepositoryAnalysis(
+            @PathVariable Long repositoryId
+    ) {
+        AnalysisResponseDTO response = analysisService.cancelRepositoryAnalysis(repositoryId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/analysis/{analysisId}/cancel")
+    public ResponseEntity<AnalysisResponseDTO> cancelAnalysisJob(
+            @PathVariable Long analysisId
+    ) {
+        AnalysisResponseDTO response = analysisService.cancelAnalysis(analysisId);
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/analysis/{analysisId}")
     public ResponseEntity<AnalysisResponseDTO> getAnalysisJob(
             @PathVariable Long analysisId

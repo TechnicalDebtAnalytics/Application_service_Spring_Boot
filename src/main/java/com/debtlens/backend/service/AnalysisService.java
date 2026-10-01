@@ -9,6 +9,10 @@ public interface AnalysisService {
 
     AnalysisResponseDTO startAnalysis(Long repositoryId, String branch);
 
+    AnalysisResponseDTO cancelAnalysis(Long analysisId);
+
+    AnalysisResponseDTO cancelRepositoryAnalysis(Long repositoryId);
+
     AnalysisResponseDTO getAnalysisJob(Long analysisId);
 
     List<AnalysisResponseDTO> getRepositoryAnalysisHistory(Long repositoryId);

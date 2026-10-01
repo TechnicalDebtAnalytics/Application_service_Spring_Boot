@@ -4,6 +4,7 @@ import com.debtlens.backend.dto.messaging.*;
 import com.debtlens.backend.dto.response.AnalysisResponseDTO;
 import com.debtlens.backend.entity.*;
 import com.debtlens.backend.exception.BadRequestException;
+import com.debtlens.backend.exception.ResourceNotFoundException;
 import com.debtlens.backend.integration.rabbitmq.AnalysisJobProducer;
 import com.debtlens.backend.repository.Analysis_JobRepository;
 import com.debtlens.backend.repository.Analysis_Status_HistoryRepository;
@@ -158,6 +159,90 @@ public class AnalysisServiceImpl implements AnalysisService {
     }
 
     @Override
+    @Transactional
+    public AnalysisResponseDTO cancelAnalysis(Long analysisId) {
+        if (analysisId == null) {
+            throw new BadRequestException("Analysis ID must not be null");
+        }
+
+        Analysis_Job job = analysisJobRepository.findById(analysisId)
+                .orElseThrow(() -> new ResourceNotFoundException("Analysis job #" + analysisId + " not found"));
+
+        if (job.getRepository() != null) {
+            repositoryAccessService.requireRepositoryWriteAccess(job.getRepository().getRepositoryId());
+        }
+
+        // If job is already COMPLETED, CANCELLED, or FAILED, return as is
+        if (job.getStatus() == AnalysisJobStatus.COMPLETED || job.getStatus() == AnalysisJobStatus.CANCELLED || job.getStatus() == AnalysisJobStatus.FAILED) {
+            String branch = job.getRepository() != null ? job.getRepository().getDefaultBranch() : "main";
+            int count = classMetricsRepository.countByAnalysisJobAnalysisId(job.getAnalysisId());
+            return mapToResponseDTO(job, branch, count);
+        }
+
+        job.setStatus(AnalysisJobStatus.CANCELLED);
+        job.setCompletedAt(LocalDateTime.now());
+        Analysis_Job savedJob = analysisJobRepository.save(job);
+
+        // Record status history
+        Analysis_Status_History history = new Analysis_Status_History();
+        history.setAnalysisJob(savedJob);
+        history.setStatus(AnalysisJobStatus.CANCELLED);
+        history.setMessage("Analysis job #" + analysisId + " was cancelled by user.");
+        history.setTimestamp(LocalDateTime.now());
+        statusHistoryRepository.save(history);
+
+        log.info("Analysis job #{} cancelled by user", analysisId);
+
+        String branch = savedJob.getRepository() != null ? savedJob.getRepository().getDefaultBranch() : "main";
+        Long repoId = savedJob.getRepository() != null ? savedJob.getRepository().getRepositoryId() : null;
+        String repoName = savedJob.getRepository() != null ? savedJob.getRepository().getRepositoryName() : "Repository";
+
+        // Broadcast live cancellation via WebSocket
+        if (analysisProgressPublisher != null && repoId != null) {
+            analysisProgressPublisher.broadcastProgress(AnalysisProgressMessage.builder()
+                    .jobId(savedJob.getAnalysisId())
+                    .repositoryId(repoId)
+                    .repositoryName(repoName)
+                    .branch(branch)
+                    .status("CANCELLED")
+                    .stage("CANCELLED")
+                    .message("Analysis job #" + savedJob.getAnalysisId() + " was cancelled by user.")
+                    .timestamp(LocalDateTime.now())
+                    .build());
+        }
+
+        return mapToResponseDTO(savedJob, branch, 0);
+    }
+
+    @Override
+    @Transactional
+    public AnalysisResponseDTO cancelRepositoryAnalysis(Long repositoryId) {
+        if (repositoryId == null) {
+            throw new BadRequestException("Repository ID must not be null");
+        }
+
+        repositoryAccessService.requireRepositoryWriteAccess(repositoryId);
+
+        List<Analysis_Job> jobs = analysisJobRepository.findByRepositoryRepositoryIdOrderByStartedAtDesc(repositoryId);
+        Analysis_Job activeJob = jobs.stream()
+                .filter(j -> j.getStatus() == AnalysisJobStatus.QUEUED || j.getStatus() == AnalysisJobStatus.RUNNING)
+                .findFirst()
+                .orElse(null);
+
+        if (activeJob == null) {
+            if (!jobs.isEmpty()) {
+                Analysis_Job latest = jobs.get(0);
+                String branch = latest.getRepository() != null ? latest.getRepository().getDefaultBranch() : "main";
+                int count = classMetricsRepository.countByAnalysisJobAnalysisId(latest.getAnalysisId());
+                return mapToResponseDTO(latest, branch, count);
+            }
+            throw new ResourceNotFoundException("No active analysis job found for repository #" + repositoryId);
+        }
+
+        return cancelAnalysis(activeJob.getAnalysisId());
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public AnalysisResponseDTO getAnalysisJob(Long analysisId) {
         Analysis_Job job = repositoryAccessService.requireAnalysisReadAccess(analysisId);
@@ -278,6 +363,11 @@ public class AnalysisServiceImpl implements AnalysisService {
         Analysis_Job job = analysisJobRepository.findById(analysisId).orElse(null);
         if (job == null) {
             log.error("Analysis job #{} not found in database for result processing", analysisId);
+            return;
+        }
+
+        if (job.getStatus() == AnalysisJobStatus.CANCELLED) {
+            log.info("Skipping analysis result processing for cancelled job #{}", analysisId);
             return;
         }
 

@@ -100,6 +100,11 @@ public class MLResultConsumer {
             return;
         }
 
+        if (job.getStatus() == AnalysisJobStatus.CANCELLED) {
+            log.info("Skipping ML result processing for cancelled job #{}", analysisId);
+            return;
+        }
+
         if (result.getClasses() == null || result.getClasses().isEmpty()) {
             log.warn("ML result for job #{} contains no class predictions", analysisId);
             return;
