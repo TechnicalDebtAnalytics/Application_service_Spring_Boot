@@ -23,13 +23,16 @@ class GithubServiceAuth0Test {
     private GithubClient githubClient;
 
     @Mock
+    private GithubAppTokenService githubAppTokenService;
+
+    @Mock
     private UserRepository userRepository;
 
     private GithubService githubService;
 
     @BeforeEach
     void setUp() {
-        githubService = new GithubService(githubClient, userRepository);
+        githubService = new GithubService(githubClient, githubAppTokenService, userRepository);
     }
 
     @Test
@@ -39,7 +42,7 @@ class GithubServiceAuth0Test {
         user.setGithubUsername("octocat");
 
         when(userRepository.findByAuth0UserId("auth0|12345")).thenReturn(Optional.of(user));
-        when(githubClient.isPublicMember("octo-org", "octocat")).thenReturn(true);
+        when(githubClient.isPublicMember("octo-org", "octocat", null)).thenReturn(true);
 
         GithubMemberValidationResponse response = githubService.validateUserMembershipByAuth0UserId("octo-org", "auth0|12345");
 
@@ -47,7 +50,7 @@ class GithubServiceAuth0Test {
         assertEquals("octocat", response.username());
         assertTrue(response.isMember());
         verify(userRepository, times(1)).findByAuth0UserId("auth0|12345");
-        verify(githubClient, times(1)).isPublicMember("octo-org", "octocat");
+        verify(githubClient, times(1)).isPublicMember("octo-org", "octocat", null);
     }
 
     @Test
