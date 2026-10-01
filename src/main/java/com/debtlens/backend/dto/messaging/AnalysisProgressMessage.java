@@ -17,6 +17,7 @@ public class AnalysisProgressMessage {
     private String repositoryName;
     private String branch;
     private String status;
+    private String stage;
     private Integer totalClasses;
     private String message;
     private LocalDateTime timestamp;
