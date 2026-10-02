@@ -25,4 +25,10 @@ public interface CompanyService {
     List<CompanyResponseDTO> getMyMemberCompanies();
 
     CompanyResponseDTO linkGithubInstallation(Long companyId, Long installationId);
+
+    void removeRepositoryFromCompany(Long companyId, Long repositoryId);
+
+    List<com.debtlens.backend.dto.response.CompanyMemberResponseDTO> getCompanyMembers(Long companyId);
+
+    void removeMemberFromCompany(Long companyId, Long memberId);
 }

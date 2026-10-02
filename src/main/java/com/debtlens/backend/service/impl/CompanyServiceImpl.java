@@ -3,9 +3,11 @@ package com.debtlens.backend.service.impl;
 import com.debtlens.backend.dto.request.CompanyRequestDTO;
 import com.debtlens.backend.dto.request.SelectedRepoDTO;
 import com.debtlens.backend.dto.response.CompanyAvailableRepoDTO;
+import com.debtlens.backend.dto.response.CompanyMemberResponseDTO;
 import com.debtlens.backend.dto.response.CompanyResponseDTO;
 import com.debtlens.backend.dto.response.RepositoryResponseDTO;
 import com.debtlens.backend.entity.Company;
+import com.debtlens.backend.entity.Member;
 import com.debtlens.backend.entity.Repository;
 import com.debtlens.backend.entity.Super_Admin;
 import com.debtlens.backend.entity.User;
@@ -40,6 +42,8 @@ public class CompanyServiceImpl implements CompanyService {
     private final Super_AdminRepository superAdminRepository;
     private final com.debtlens.backend.repository.MemberRepository memberRepository;
     private final com.debtlens.backend.repository.Repo_AssignmentRepository repoAssignmentRepository;
+    private final com.debtlens.backend.repository.Analysis_JobRepository analysisJobRepository;
+    private final com.debtlens.backend.repository.InvitationRepository invitationRepository;
     private final Auth0UserService auth0UserService;
     private final CompanyAccessService companyAccessService;
     private final GithubService githubService;
@@ -52,6 +56,8 @@ public class CompanyServiceImpl implements CompanyService {
             Super_AdminRepository superAdminRepository,
             com.debtlens.backend.repository.MemberRepository memberRepository,
             com.debtlens.backend.repository.Repo_AssignmentRepository repoAssignmentRepository,
+            com.debtlens.backend.repository.Analysis_JobRepository analysisJobRepository,
+            com.debtlens.backend.repository.InvitationRepository invitationRepository,
             Auth0UserService auth0UserService,
             CompanyAccessService companyAccessService,
             GithubService githubService,
@@ -63,6 +69,8 @@ public class CompanyServiceImpl implements CompanyService {
         this.superAdminRepository = superAdminRepository;
         this.memberRepository = memberRepository;
         this.repoAssignmentRepository = repoAssignmentRepository;
+        this.analysisJobRepository = analysisJobRepository;
+        this.invitationRepository = invitationRepository;
         this.auth0UserService = auth0UserService;
         this.companyAccessService = companyAccessService;
         this.githubService = githubService;
@@ -361,6 +369,136 @@ public class CompanyServiceImpl implements CompanyService {
         company.setGithubInstallationId(installationId);
         Company updated = companyRepository.save(company);
         return companyMapper.toDTO(updated);
+    }
+
+    /**
+     * Removes an imported repository from the company and cleans up associated
+     * analysis jobs, invitations, and repo assignments (Super Admin only).
+     */
+    @Override
+    @Transactional
+    public void removeRepositoryFromCompany(Long companyId, Long repositoryId) {
+        Company company = companyAccessService.requireSuperAdminAccess(companyId);
+
+        Repository repository = repositoryRepository.findById(repositoryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Repository not found with ID: " + repositoryId));
+
+        if (!repository.getCompany().getCompanyId().equals(companyId)) {
+            throw new BadRequestException("Repository does not belong to the specified company");
+        }
+
+        // 1. Delete associated analysis jobs for this repository
+        List<com.debtlens.backend.entity.Analysis_Job> jobs =
+                analysisJobRepository.findByRepositoryRepositoryIdOrderByStartedAtDesc(repositoryId);
+        if (jobs.stream().anyMatch(job -> job.getStatus() == com.debtlens.backend.entity.AnalysisJobStatus.QUEUED
+                || job.getStatus() == com.debtlens.backend.entity.AnalysisJobStatus.RUNNING)) {
+            throw new BadRequestException("Cancel or finish active analyses before removing this repository");
+        }
+        if (!jobs.isEmpty()) {
+            analysisJobRepository.deleteAll(jobs);
+            analysisJobRepository.flush();
+        }
+
+        // 2. Delete associated member repo assignments
+        List<com.debtlens.backend.entity.Repo_Assignment> assignments =
+                repoAssignmentRepository.findByRepositoryRepositoryId(repositoryId);
+        if (!assignments.isEmpty()) {
+            repoAssignmentRepository.deleteAll(assignments);
+            repoAssignmentRepository.flush();
+        }
+
+        // 3. Delete associated invitations
+        List<com.debtlens.backend.entity.Invitation> invitations =
+                invitationRepository.findByRepositoryRepositoryId(repositoryId);
+        if (!invitations.isEmpty()) {
+            invitationRepository.deleteAll(invitations);
+            invitationRepository.flush();
+        }
+
+        // 4. Remove repository from company and delete
+        company.getRepositories().removeIf(r -> r.getRepositoryId().equals(repositoryId));
+        repositoryRepository.delete(repository);
+        repositoryRepository.flush();
+    }
+
+    /**
+     * Retrieves all members / contributors belonging to a company with their assigned repositories.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.debtlens.backend.dto.response.CompanyMemberResponseDTO> getCompanyMembers(Long companyId) {
+        companyAccessService.requireCompanyAccess(companyId);
+
+        List<Member> members = memberRepository.findByCompanyCompanyId(companyId);
+
+        return members.stream().map(member -> {
+            List<com.debtlens.backend.entity.Repo_Assignment> assignments =
+                    repoAssignmentRepository.findByMemberMemberId(member.getMemberId());
+
+            List<RepositoryResponseDTO> assignedRepos = assignments.stream()
+                    .map(com.debtlens.backend.entity.Repo_Assignment::getRepository)
+                    .map(repositoryMapper::toDTO)
+                    .toList();
+
+            User user = member.getUser();
+            String fullName = user != null
+                    ? ((user.getFirstName() != null ? user.getFirstName() : "") + " " + (user.getLastName() != null ? user.getLastName() : "")).trim()
+                    : null;
+            return new CompanyMemberResponseDTO(
+                    member.getMemberId(),
+                    user != null ? user.getUserId() : null,
+                    user != null ? user.getEmail() : null,
+                    user != null ? user.getGithubUsername() : null,
+                    fullName,
+                    member.getCreatedAt(),
+                    assignedRepos
+            );
+        }).toList();
+    }
+
+    /**
+     * Removes a member / contributor from a company (Super Admin only).
+     */
+    @Override
+    @Transactional
+    public void removeMemberFromCompany(Long companyId, Long memberId) {
+        companyAccessService.requireSuperAdminAccess(companyId);
+
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new ResourceNotFoundException("Member not found with ID: " + memberId));
+
+        if (!member.getCompany().getCompanyId().equals(companyId)) {
+            throw new BadRequestException("Member does not belong to the specified company");
+        }
+
+        // 1. Delete member repo assignments
+        List<com.debtlens.backend.entity.Repo_Assignment> assignments =
+                repoAssignmentRepository.findByMemberMemberId(memberId);
+        if (!assignments.isEmpty()) {
+            repoAssignmentRepository.deleteAll(assignments);
+            repoAssignmentRepository.flush();
+        }
+
+        // Pending invitations must not restore access after an administrator removes a member.
+        User removedUser = member.getUser();
+        if (removedUser != null) {
+            invitationRepository.findByRepositoryCompanyCompanyId(companyId).stream()
+                    .filter(invitation -> invitation.getStatus() == com.debtlens.backend.entity.InvitationStatus.PENDING)
+                    .filter(invitation -> matchesRecipient(invitation, removedUser))
+                    .forEach(invitation -> invitationRepository.delete(invitation));
+            invitationRepository.flush();
+        }
+
+        // 2. Delete member entity
+        memberRepository.delete(member);
+        memberRepository.flush();
+    }
+
+    private boolean matchesRecipient(com.debtlens.backend.entity.Invitation invitation, User user) {
+        return (user.getEmail() != null && !user.getEmail().isBlank()
+                && user.getEmail().equalsIgnoreCase(invitation.getEmail()))
+                || (user.getGithubUsername() != null && !user.getGithubUsername().isBlank()
+                && user.getGithubUsername().equalsIgnoreCase(invitation.getGithubUsername()));
     }
 
     private String extractOrgName(String input) {
