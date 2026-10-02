@@ -83,4 +83,15 @@ public class InvitationController {
         InvitationResponseDTO rejected = invitationService.rejectInvitation(id);
         return ResponseEntity.ok(rejected);
     }
+
+    /**
+     * Revokes / cancels an invitation (Super Admin only).
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> revokeInvitation(
+            @PathVariable Long id
+    ) {
+        invitationService.revokeInvitation(id);
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -108,4 +108,39 @@ public class CompanyController {
         CompanyResponseDTO updated = companyService.linkGithubInstallation(companyId, request.installationId());
         return ResponseEntity.ok(updated);
     }
+
+    /**
+     * Remove a repository from a company (Super Admin only).
+     */
+    @DeleteMapping("/{companyId}/repositories/{repositoryId}")
+    public ResponseEntity<Void> removeRepository(
+            @PathVariable Long companyId,
+            @PathVariable Long repositoryId
+    ) {
+        companyService.removeRepositoryFromCompany(companyId, repositoryId);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Fetch all members/contributors of a company (Super Admin or Member).
+     */
+    @GetMapping("/{companyId}/members")
+    public ResponseEntity<List<com.debtlens.backend.dto.response.CompanyMemberResponseDTO>> getCompanyMembers(
+            @PathVariable Long companyId
+    ) {
+        List<com.debtlens.backend.dto.response.CompanyMemberResponseDTO> members = companyService.getCompanyMembers(companyId);
+        return ResponseEntity.ok(members);
+    }
+
+    /**
+     * Remove a member/contributor from a company (Super Admin only).
+     */
+    @DeleteMapping("/{companyId}/members/{memberId}")
+    public ResponseEntity<Void> removeMember(
+            @PathVariable Long companyId,
+            @PathVariable Long memberId
+    ) {
+        companyService.removeMemberFromCompany(companyId, memberId);
+        return ResponseEntity.noContent().build();
+    }
 }

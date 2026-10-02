@@ -53,4 +53,11 @@ public interface InvitationService {
      * @return Updated invitation DTO with status REJECTED.
      */
     InvitationResponseDTO rejectInvitation(Long invitationId);
+
+    /**
+     * Revokes / deletes an invitation (Super Admin only).
+     *
+     * @param invitationId Primary key of the invitation.
+     */
+    void revokeInvitation(Long invitationId);
 }

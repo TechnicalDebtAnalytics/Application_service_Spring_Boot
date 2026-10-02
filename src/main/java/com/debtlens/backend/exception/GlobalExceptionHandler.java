@@ -16,6 +16,20 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleMissingEndpoint(
+            org.springframework.web.servlet.resource.NoResourceFoundException ex) {
+        return errorResponse(HttpStatus.NOT_FOUND, "This endpoint is unavailable. Check that the backend is updated.");
+    }
+
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleUnsupportedMethod(
+            org.springframework.web.HttpRequestMethodNotSupportedException ex) {
+        return errorResponse(HttpStatus.METHOD_NOT_ALLOWED, "This action is unavailable. Check that the backend is updated.");
+    }
+
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<Map<String, Object>> handleAuthentication(AuthenticationException ex) {
         return errorResponse(
@@ -66,6 +80,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntime(RuntimeException ex) {
+        log.error("Unhandled backend exception", ex);
         return errorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "An unexpected error occurred"
@@ -74,6 +89,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneral(Exception ex) {
+        log.error("Unhandled backend exception", ex);
         return errorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "An unexpected error occurred"

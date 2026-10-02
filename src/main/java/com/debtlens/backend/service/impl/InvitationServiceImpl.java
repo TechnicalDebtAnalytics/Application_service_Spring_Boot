@@ -268,4 +268,23 @@ public class InvitationServiceImpl implements InvitationService {
 
         return invitationMapper.toDTO(savedInvitation);
     }
+
+    /**
+     * Revokes / deletes an invitation (Super Admin only).
+     */
+    @Override
+    @Transactional
+    public void revokeInvitation(Long invitationId) {
+        Invitation invitation = invitationRepository.findById(invitationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Invitation not found with ID: " + invitationId));
+
+        Company company = invitation.getRepository() != null ? invitation.getRepository().getCompany() : null;
+        if (company == null) {
+            throw new BadRequestException("Invitation is not linked to a valid company");
+        }
+
+        companyAccessService.requireSuperAdminAccess(company.getCompanyId());
+
+        invitationRepository.delete(invitation);
+    }
 }
