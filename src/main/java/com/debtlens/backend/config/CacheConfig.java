@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 @EnableCaching
 public class CacheConfig {
 
+    public static final String CACHE_GITHUB_ORGANIZATIONS = "github-orgs";
     public static final String CACHE_GITHUB_CONTRIBUTORS = "github-contributors";
     public static final String CACHE_GITHUB_REPOSITORIES = "github-repos";
     public static final String CACHE_GITHUB_MEMBERS = "github-members";
@@ -30,6 +31,7 @@ public class CacheConfig {
     @Bean
     public CacheManager cacheManager(Caffeine<Object, Object> caffeine) {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager(
+                CACHE_GITHUB_ORGANIZATIONS,
                 CACHE_GITHUB_CONTRIBUTORS,
                 CACHE_GITHUB_REPOSITORIES,
                 CACHE_GITHUB_MEMBERS,

@@ -9,7 +9,8 @@ import com.debtlens.backend.security.RepositoryAccessService;
 import com.debtlens.backend.service.ReportService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.CacheManager;
+import com.debtlens.backend.config.CacheConfig;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +29,7 @@ public class ReportServiceImpl implements ReportService {
     private final Debt_ScoreRepository debtScoreRepository;
     private final ReportRepository reportRepository;
     private final RepositoryAccessService repositoryAccessService;
+    private final CacheManager cacheManager;
 
     public ReportServiceImpl(
             Class_MetricsRepository classMetricsRepository,
@@ -35,7 +37,8 @@ public class ReportServiceImpl implements ReportService {
             SATD_DetectionRepository satdDetectionRepository,
             Debt_ScoreRepository debtScoreRepository,
             ReportRepository reportRepository,
-            RepositoryAccessService repositoryAccessService
+            RepositoryAccessService repositoryAccessService,
+            CacheManager cacheManager
     ) {
         this.classMetricsRepository = classMetricsRepository;
         this.bugPredictionRepository = bugPredictionRepository;
@@ -43,14 +46,23 @@ public class ReportServiceImpl implements ReportService {
         this.debtScoreRepository = debtScoreRepository;
         this.reportRepository = reportRepository;
         this.repositoryAccessService = repositoryAccessService;
+        this.cacheManager = cacheManager;
     }
 
     @Override
     @Transactional
-    @Cacheable(value = "analysis-reports", key = "#analysisId")
     public ReportResponseDTO generateReport(Long analysisId) {
         Analysis_Job job = repositoryAccessService.requireAnalysisReadAccess(analysisId);
+        // Check access on every request, even when a completed report is cached.
+        // In-progress reports must not freeze incomplete metrics in the cache.
+        if (job.getStatus() == AnalysisJobStatus.COMPLETED) {
+            var cache = Objects.requireNonNull(cacheManager.getCache(CacheConfig.CACHE_ANALYSIS_REPORTS));
+            return cache.get(analysisId, () -> buildReport(analysisId, job));
+        }
+        return buildReport(analysisId, job);
+    }
 
+    private ReportResponseDTO buildReport(Long analysisId, Analysis_Job job) {
         // 1. Audit generation in the reports table
         Report reportLog = new Report();
         reportLog.setAnalysisJob(job);

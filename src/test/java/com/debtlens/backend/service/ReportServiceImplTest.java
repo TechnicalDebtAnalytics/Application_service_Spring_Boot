@@ -49,7 +49,9 @@ class ReportServiceImplTest {
                 satdDetectionRepository,
                 debtScoreRepository,
                 reportRepository,
-                repositoryAccessService
+                repositoryAccessService,
+                new com.debtlens.backend.config.CacheConfig().cacheManager(
+                        new com.debtlens.backend.config.CacheConfig().caffeineConfig())
         );
     }
 
@@ -163,5 +165,48 @@ class ReportServiceImplTest {
         List<Report> history = reportService.getReportHistory(100L);
 
         assertEquals(List.of(report), history);
+    }
+
+    @Test
+    void cachedCompletedReportsStillCheckAccessAndDoNotRecomputeMetrics() {
+        Analysis_Job job = new Analysis_Job();
+        job.setAnalysisId(200L);
+        job.setStatus(AnalysisJobStatus.COMPLETED);
+        Repository repo = new Repository();
+        repo.setRepositoryId(10L);
+        repo.setRepositoryName("cached-repo");
+        repo.setDefaultBranch("main");
+        job.setRepository(repo);
+        when(repositoryAccessService.requireAnalysisReadAccess(200L))
+                .thenReturn(job).thenReturn(job).thenThrow(new AccessDeniedException("Access revoked"));
+        when(reportRepository.save(any(Report.class))).thenAnswer(invocation -> {
+            Report report = invocation.getArgument(0);
+            report.setReportId(1L);
+            return report;
+        });
+        reportService.generateReport(200L);
+        reportService.generateReport(200L);
+        assertThrows(AccessDeniedException.class, () -> reportService.generateReport(200L));
+        org.mockito.Mockito.verify(repositoryAccessService, org.mockito.Mockito.times(3)).requireAnalysisReadAccess(200L);
+        org.mockito.Mockito.verify(classMetricsRepository, org.mockito.Mockito.times(1))
+                .findByAnalysisJobAnalysisIdOrderByFilePathAscStartLineAscClassNameAsc(200L);
+        org.mockito.Mockito.verify(reportRepository, org.mockito.Mockito.times(1)).save(any(Report.class));
+    }
+
+    @Test
+    void inProgressReportDoesNotCacheIncompleteMetrics() {
+        Analysis_Job job = new Analysis_Job();
+        job.setAnalysisId(201L);
+        job.setStatus(AnalysisJobStatus.RUNNING);
+        Repository repo = new Repository();
+        repo.setRepositoryName("running-repo");
+        repo.setDefaultBranch("main");
+        job.setRepository(repo);
+        when(repositoryAccessService.requireAnalysisReadAccess(201L)).thenReturn(job);
+        when(reportRepository.save(any(Report.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        reportService.generateReport(201L);
+        reportService.generateReport(201L);
+        org.mockito.Mockito.verify(classMetricsRepository, org.mockito.Mockito.times(2))
+                .findByAnalysisJobAnalysisIdOrderByFilePathAscStartLineAscClassNameAsc(201L);
     }
 }
