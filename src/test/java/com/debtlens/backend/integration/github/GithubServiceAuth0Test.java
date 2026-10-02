@@ -32,7 +32,9 @@ class GithubServiceAuth0Test {
 
     @BeforeEach
     void setUp() {
-        githubService = new GithubService(githubClient, githubAppTokenService, userRepository);
+        githubService = new GithubService(githubClient, githubAppTokenService, userRepository,
+                new com.debtlens.backend.config.CacheConfig().cacheManager(
+                        new com.debtlens.backend.config.CacheConfig().caffeineConfig()));
     }
 
     @Test

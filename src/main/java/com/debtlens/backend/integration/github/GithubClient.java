@@ -224,6 +224,7 @@ public class GithubClient {
                 throw ex;
             } catch (Exception ex) {
                 log.warn("Failed base contributor fetch for {}/{}: {}", cleanOwner, cleanRepo, ex.getMessage());
+                throw ex;
             }
 
             // 2. Fetch all branches of the repository so contributors across every branch are included
@@ -286,11 +287,13 @@ public class GithubClient {
                             }
                         } catch (Exception ex) {
                             log.debug("Could not fetch commits for branch {} of {}/{}: {}", branch.name(), cleanOwner, cleanRepo, ex.getMessage());
+                            throw ex;
                         }
                     }
                 }
             } catch (Exception ex) {
                 log.debug("Could not fetch branches for repository {}/{}: {}", cleanOwner, cleanRepo, ex.getMessage());
+                throw ex;
             }
 
             return new java.util.ArrayList<>(contributorsByLogin.values());
@@ -298,7 +301,7 @@ public class GithubClient {
             throw ex;
         } catch (Exception ex) {
             log.warn("Failed to fetch repository-wide contributors for {}/{}: {}", cleanOwner, cleanRepo, ex.getMessage());
-            return new java.util.ArrayList<>(contributorsByLogin.values());
+            throw ex;
         }
     }
 }
