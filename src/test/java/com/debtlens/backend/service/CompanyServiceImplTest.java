@@ -362,7 +362,7 @@ class CompanyServiceImplTest {
         when(repositoryRepository.findById(201L)).thenReturn(Optional.of(repo));
         when(analysisJobRepository.findByRepositoryRepositoryIdOrderByStartedAtDesc(201L)).thenReturn(List.of(job));
         assertThrows(BadRequestException.class, () -> service.removeRepositoryFromCompany(10L, 201L));
-        verify(repositoryRepository, never()).delete(any());
+        verify(repositoryRepository, never()).delete(any(Repository.class));
         verify(analysisJobRepository, never()).deleteAll(org.mockito.ArgumentMatchers.<Iterable<com.debtlens.backend.entity.Analysis_Job>>any());
         verifyNoInteractions(repoAssignmentRepository, invitationRepository);
     }
