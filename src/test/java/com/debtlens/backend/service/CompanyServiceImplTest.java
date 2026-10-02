@@ -57,6 +57,8 @@ class CompanyServiceImplTest {
     @Mock Super_AdminRepository superAdminRepository;
     @Mock MemberRepository memberRepository;
     @Mock Repo_AssignmentRepository repoAssignmentRepository;
+    @Mock com.debtlens.backend.repository.Analysis_JobRepository analysisJobRepository;
+    @Mock com.debtlens.backend.repository.InvitationRepository invitationRepository;
     @Mock Auth0UserService auth0UserService;
     @Mock CompanyAccessService companyAccessService;
     @Mock GithubService githubService;
@@ -69,8 +71,8 @@ class CompanyServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new CompanyServiceImpl(companyRepository, repositoryRepository, superAdminRepository,
-                memberRepository, repoAssignmentRepository, auth0UserService, companyAccessService, githubService,
-                companyMapper, repositoryMapper);
+                memberRepository, repoAssignmentRepository, analysisJobRepository, invitationRepository,
+                auth0UserService, companyAccessService, githubService, companyMapper, repositoryMapper);
         owner = user(1L, "owner-gh");
         SecurityContextHolder.clearContext();
     }
@@ -295,6 +297,101 @@ class CompanyServiceImplTest {
         when(companyMapper.toDTO(company, List.of(repoDto))).thenReturn(companyDto);
 
         assertEquals(List.of(companyDto), service.getMyMemberCompanies());
+    }
+
+    @Test
+    void removeRepositoryFromCompany_shouldDeleteJobsAssignmentsInvitationsAndRepository() {
+        Company comp = company(10L, owner);
+        Repository repo = repository("101", 201L);
+        repo.setCompany(comp);
+        comp.addRepository(repo);
+
+        when(companyAccessService.requireSuperAdminAccess(10L)).thenReturn(comp);
+        when(repositoryRepository.findById(201L)).thenReturn(Optional.of(repo));
+
+        service.removeRepositoryFromCompany(10L, 201L);
+
+        verify(analysisJobRepository).findByRepositoryRepositoryIdOrderByStartedAtDesc(201L);
+        verify(repoAssignmentRepository).findByRepositoryRepositoryId(201L);
+        verify(invitationRepository).findByRepositoryRepositoryId(201L);
+        verify(repositoryRepository).delete(repo);
+    }
+
+    @Test
+    void removeMemberFromCompany_shouldDeleteAssignmentsAndMember() {
+        Company comp = company(10L, owner);
+        Member member = new Member();
+        member.setMemberId(50L);
+        member.setCompany(comp);
+
+        when(companyAccessService.requireSuperAdminAccess(10L)).thenReturn(comp);
+        when(memberRepository.findById(50L)).thenReturn(Optional.of(member));
+
+        service.removeMemberFromCompany(10L, 50L);
+
+        verify(repoAssignmentRepository).findByMemberMemberId(50L);
+        verify(memberRepository).delete(member);
+    }
+
+    @Test
+    void getCompanyMembers_shouldReturnMappedMemberList() {
+        Company comp = company(10L, owner);
+        Member member = new Member();
+        member.setMemberId(50L);
+        member.setCompany(comp);
+        member.setUser(owner);
+
+        when(companyAccessService.requireCompanyAccess(10L)).thenReturn(comp);
+        when(memberRepository.findByCompanyCompanyId(10L)).thenReturn(List.of(member));
+
+        var result = service.getCompanyMembers(10L);
+
+        assertEquals(1, result.size());
+        assertEquals(50L, result.get(0).memberId());
+        assertEquals("owner-gh", result.get(0).githubUsername());
+    }
+
+    @Test
+    void removalRejectsAnActiveJobBeforeDeletingAnything() {
+        Company comp = company(10L, owner);
+        Repository repo = repository("101", 201L);
+        repo.setCompany(comp);
+        var job = new com.debtlens.backend.entity.Analysis_Job();
+        job.setStatus(com.debtlens.backend.entity.AnalysisJobStatus.RUNNING);
+        when(companyAccessService.requireSuperAdminAccess(10L)).thenReturn(comp);
+        when(repositoryRepository.findById(201L)).thenReturn(Optional.of(repo));
+        when(analysisJobRepository.findByRepositoryRepositoryIdOrderByStartedAtDesc(201L)).thenReturn(List.of(job));
+        assertThrows(BadRequestException.class, () -> service.removeRepositoryFromCompany(10L, 201L));
+        verify(repositoryRepository, never()).delete(any(Repository.class));
+        verify(analysisJobRepository, never()).deleteAll(org.mockito.ArgumentMatchers.<Iterable<com.debtlens.backend.entity.Analysis_Job>>any());
+        verifyNoInteractions(repoAssignmentRepository, invitationRepository);
+    }
+
+    @Test
+    void removingAMemberRevokesOnlyTheirPendingCompanyInvitations() {
+        Company comp = company(10L, owner);
+        Member member = new Member();
+        member.setMemberId(50L);
+        member.setCompany(comp);
+        member.setUser(owner);
+        owner.setEmail("owner@example.com");
+        var pending = new com.debtlens.backend.entity.Invitation();
+        pending.setEmail("OWNER@example.com");
+        pending.setStatus(com.debtlens.backend.entity.InvitationStatus.PENDING);
+        var accepted = new com.debtlens.backend.entity.Invitation();
+        accepted.setGithubUsername("owner-gh");
+        accepted.setStatus(com.debtlens.backend.entity.InvitationStatus.ACCEPTED);
+        var other = new com.debtlens.backend.entity.Invitation();
+        other.setEmail("other@example.com");
+        other.setStatus(com.debtlens.backend.entity.InvitationStatus.PENDING);
+        when(companyAccessService.requireSuperAdminAccess(10L)).thenReturn(comp);
+        when(memberRepository.findById(50L)).thenReturn(Optional.of(member));
+        when(invitationRepository.findByRepositoryCompanyCompanyId(10L)).thenReturn(List.of(pending, accepted, other));
+        service.removeMemberFromCompany(10L, 50L);
+        verify(invitationRepository).delete(pending);
+        verify(invitationRepository, never()).delete(accepted);
+        verify(invitationRepository, never()).delete(other);
+        verify(memberRepository).delete(member);
     }
 
     private static User user(Long id, String githubUsername) {
