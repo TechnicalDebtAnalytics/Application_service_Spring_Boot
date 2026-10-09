@@ -126,6 +126,8 @@ class ReportServiceImplTest {
         assertNotNull(report);
         assertEquals(2, report.getTotalClasses());
         assertEquals("DebtLens", report.getRepositoryName());
+        assertEquals(47.5, report.getOverallDebtScore());
+        assertEquals("GOOD", report.getOverallHealthScore());
 
         List<ClassRecommendationDTO> list = report.getPrioritizedRefactoringList();
         assertEquals(2, list.size());
@@ -139,6 +141,7 @@ class ReportServiceImplTest {
         // Low debt class (OrderUtil) should be rank 2
         assertEquals("OrderUtil", list.get(1).getClassName());
         assertEquals(2, list.get(1).getRefactorPriorityRank());
+        assertNull(list.get(1).getBugProbability(), "A missing prediction must not be reported as 0% defect probability");
     }
 
     @Test
