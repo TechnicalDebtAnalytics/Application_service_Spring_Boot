@@ -78,9 +78,11 @@ public class ReportServiceImpl implements ReportService {
                 .filter(c -> c.getBugProbability() != null && c.getBugProbability() >= 0.50)
                 .count();
 
-        double avgDebtScore = totalClasses > 0
+        double avgDebtScore = prioritizedList.stream().anyMatch(c -> c.getTechnicalDebtScore() != null)
                 ? prioritizedList.stream()
-                .mapToDouble(c -> c.getTechnicalDebtScore() != null ? c.getTechnicalDebtScore() : 0.0)
+                .map(ClassRecommendationDTO::getTechnicalDebtScore)
+                .filter(Objects::nonNull)
+                .mapToDouble(Double::doubleValue)
                 .average()
                 .orElse(0.0)
                 : 0.0;
@@ -111,7 +113,7 @@ public class ReportServiceImpl implements ReportService {
         int totalSatdComments = (int) satdDetectionRepository
                 .findByClassCommentClassMetricsAnalysisJobAnalysisId(analysisId)
                 .stream()
-                .filter(s -> !s.getCategory().equalsIgnoreCase("non_debt"))
+                .filter(s -> isDebtCategory(s.getCategory()))
                 .count();
 
         String repoName = job.getRepository() != null ? job.getRepository().getRepositoryName() : "Unknown Repository";
@@ -191,16 +193,16 @@ public class ReportServiceImpl implements ReportService {
             Bug_Prediction bugPrediction = bugMap.get(classId);
             List<SATD_Detection> satdList = classSatdMap.getOrDefault(classId, Collections.emptyList());
 
-            double score = debtScore != null ? debtScore.getTechnicalDebtScore() : 0.0;
-            String health = debtScore != null ? debtScore.getHealthScore() : "EXCELLENT";
-            String risk = debtScore != null ? debtScore.getRiskLevel() : "LOW";
-            double bugProb = bugPrediction != null ? bugPrediction.getProbabilityScore() : 0.0;
+            Double score = debtScore != null ? debtScore.getTechnicalDebtScore() : null;
+            String health = debtScore != null ? debtScore.getHealthScore() : "UNKNOWN";
+            String risk = debtScore != null ? debtScore.getRiskLevel() : "UNKNOWN";
+            Double bugProb = bugPrediction != null ? bugPrediction.getProbabilityScore() : null;
 
             List<String> drivers = new ArrayList<>();
             List<RefactoringActionDTO> actions = new ArrayList<>();
 
             // 1. Defect Risk Action
-            if (bugProb >= 0.50) {
+            if (bugProb != null && bugProb >= 0.50) {
                 drivers.add("High Defect Risk (" + Math.round(bugProb * 100) + "% defect probability)");
                 actions.add(RefactoringActionDTO.builder()
                         .type("DEFECT_PREVENTION")
@@ -250,7 +252,7 @@ public class ReportServiceImpl implements ReportService {
 
             // 5. SATD Comment Actions
             List<SATD_Detection> debtSatds = satdList.stream()
-                    .filter(s -> !s.getCategory().equalsIgnoreCase("non_debt"))
+                    .filter(s -> isDebtCategory(s.getCategory()))
                     .collect(Collectors.toList());
 
             if (!debtSatds.isEmpty()) {
@@ -305,9 +307,8 @@ public class ReportServiceImpl implements ReportService {
 
         // Sort descending by technical debt score (highest debt first to refactor)
         recommendations.sort(Comparator
-                .comparing((ClassRecommendationDTO c) -> c.getTechnicalDebtScore() != null ? c.getTechnicalDebtScore() : 0.0)
-                .reversed()
-                .thenComparing((ClassRecommendationDTO c) -> c.getBugProbability() != null ? c.getBugProbability() : 0.0, Comparator.reverseOrder())
+                .comparing(ClassRecommendationDTO::getTechnicalDebtScore, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(ClassRecommendationDTO::getBugProbability, Comparator.nullsLast(Comparator.reverseOrder()))
         );
 
         // Assign 1-indexed refactoring priority rank
@@ -316,6 +317,12 @@ public class ReportServiceImpl implements ReportService {
         }
 
         return recommendations;
+    }
+
+    private static boolean isDebtCategory(String category) {
+        return category != null
+                && !category.equalsIgnoreCase("non_debt")
+                && !category.equalsIgnoreCase("without_classification");
     }
 
 }
